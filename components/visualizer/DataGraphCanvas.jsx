@@ -1,134 +1,249 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
+import { Background, Controls, Handle, MarkerType, Position, ReactFlow } from "@xyflow/react";
+import { normalizeDataGraph } from "./dataGraphModel";
+import TimelinePlayer from "./TimelinePlayer";
 import { shortLabel } from "./utils";
 
-const markerColors = {
-  teal: "#138f8f",
-  coral: "#df634f",
-  gold: "#b9831f",
-  violet: "#6f58c9",
-  green: "#3d8b49"
+const toneColors = {
+  "tone-teal": "#138f8f",
+  "tone-coral": "#df634f",
+  "tone-gold": "#b9831f",
+  "tone-violet": "#6f58c9",
+  "tone-green": "#3d8b49"
+};
+
+const nodeTypes = {
+  array: DataGraphNode,
+  object: DataGraphNode,
+  field: DataGraphNode,
+  value: DataGraphNode,
+  key: DataGraphNode,
+  operator: DataGraphNode,
+  bucket: DataGraphNode
 };
 
 export default function DataGraphCanvas({ graph }) {
-  const layout = createLayout(graph);
-  const markerPrefix = `graph-${graph.id}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const dataGraph = useMemo(() => normalizeDataGraph(graph), [graph]);
+  const firstPhase = dataGraph.frames[0]?.phase || 1;
+  const [currentPhase, setCurrentPhase] = useState(firstPhase);
+  const [selection, setSelection] = useState(null);
+  const layout = useMemo(() => createFlowLayout(dataGraph), [dataGraph]);
+
+  useEffect(() => {
+    setCurrentPhase(firstPhase);
+    setSelection(null);
+  }, [dataGraph.id, firstPhase]);
+
+  const flowNodes = useMemo(
+    () =>
+      dataGraph.nodes.map((node) => {
+        const position = layout.nodes.get(node.id) || { x: 0, y: 0 };
+        return {
+          id: node.id,
+          type: node.kind,
+          position,
+          data: {
+            node,
+            active: node.phase <= currentPhase,
+            current: node.phase === currentPhase
+          },
+          draggable: false,
+          selectable: true,
+          className: `flow-data-node ${node.tone} ${node.phase <= currentPhase ? "is-visible" : "is-future"}`
+        };
+      }),
+    [currentPhase, dataGraph.nodes, layout.nodes]
+  );
+
+  const flowEdges = useMemo(
+    () =>
+      dataGraph.edges.map((edge) => {
+        const active = edge.phase <= currentPhase;
+        const current = edge.phase === currentPhase;
+        return {
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+          label: edge.label,
+          animated: current && edge.animated !== false,
+          className: `flow-data-edge ${edge.tone} is-${edge.kind} ${active ? "is-visible" : "is-future"}`,
+          style: {
+            stroke: toneColors[edge.tone] || toneColors["tone-teal"],
+            strokeWidth: current ? 3.2 : 2.4,
+            opacity: active ? 0.86 : 0.18
+          },
+          labelStyle: { fill: active ? "#18202f" : "#9aa7b8", fontWeight: 800, fontSize: 11 },
+          labelBgStyle: { fill: "#ffffff", fillOpacity: 0.9 },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: toneColors[edge.tone] || toneColors["tone-teal"]
+          },
+          data: { edge, active, current }
+        };
+      }),
+    [currentPhase, dataGraph.edges]
+  );
+
+  const activeFrame = dataGraph.frames.find((frame) => frame.phase === currentPhase) || dataGraph.frames[0];
 
   return (
-    <div className="data-graph-card" aria-label={graph.title}>
+    <div className="data-graph-card" aria-label={dataGraph.title}>
       <div className="data-graph-heading">
         <span>Unified data graph</span>
-        <strong>{graph.title}</strong>
+        <strong>{dataGraph.title}</strong>
       </div>
-      <div className="data-graph-scroll">
-        <svg className="data-graph-svg" viewBox={`0 0 ${layout.width} ${layout.height}`} role="img" aria-label={graph.title}>
-          <defs>
-            {Object.entries(markerColors).map(([name, color]) => (
-              <marker id={`${markerPrefix}-${name}`} viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto" key={name}>
-                <path d="M2,2 L10,6 L2,10 Z" fill={color} />
-              </marker>
-            ))}
-          </defs>
 
-          {layout.columns.map((column) => (
-            <text className="data-graph-column-label" x={column.centerX} y="30" textAnchor="middle" key={column.id}>
-              {column.label}
-            </text>
-          ))}
+      <TimelinePlayer frames={dataGraph.frames} currentPhase={currentPhase} onPhaseChange={setCurrentPhase} />
 
-          {graph.edges.map((edge) => {
-            const source = layout.nodes.get(edge.source);
-            const target = layout.nodes.get(edge.target);
-            if (!source || !target) return null;
-            const toneName = edge.tone.replace("tone-", "");
-            const startX = source.x + source.width;
-            const startY = source.y + source.height / 2;
-            const endX = target.x;
-            const endY = target.y + target.height / 2;
-            const curve = Math.max(72, Math.abs(endY - startY) * 0.36);
-            return (
-              <g key={edge.id}>
-                <path
-                  className={`data-graph-edge ${edge.tone}`}
-                  style={{ "--delay": `${edge.phase * 80}ms` }}
-                  markerEnd={`url(#${markerPrefix}-${toneName})`}
-                  d={`M ${startX + 8} ${startY} C ${startX + curve} ${startY}, ${endX - curve} ${endY}, ${endX - 10} ${endY}`}
-                />
-                <text className="data-graph-edge-label" x={(startX + endX) / 2} y={(startY + endY) / 2 - 8} textAnchor="middle">
-                  {edge.label}
-                </text>
-              </g>
-            );
-          })}
+      <div className="data-graph-workspace">
+        <div className="data-graph-flow" style={{ minHeight: layout.height }}>
+          <ReactFlow
+            nodes={flowNodes}
+            edges={flowEdges}
+            nodeTypes={nodeTypes}
+            fitView
+            fitViewOptions={{ padding: 0.18 }}
+            minZoom={0.45}
+            maxZoom={1.3}
+            nodesDraggable={false}
+            nodesConnectable={false}
+            elementsSelectable
+            onNodeClick={(_, node) => setSelection({ type: "node", item: node.data.node })}
+            onEdgeClick={(_, edge) => setSelection({ type: "edge", item: edge.data.edge })}
+          >
+            <Background gap={22} size={1} color="#dce3ee" />
+            <Controls showInteractive={false} />
+          </ReactFlow>
+        </div>
 
-          {graph.nodes.map((node) => {
-            const position = layout.nodes.get(node.id);
-            if (!position) return null;
-            return <GraphNode node={node} position={position} key={node.id} />;
-          })}
-        </svg>
+        <FocusInspector selection={selection} frame={activeFrame} graph={dataGraph} />
       </div>
     </div>
   );
 }
 
-function GraphNode({ node, position }) {
+function DataGraphNode({ data }) {
+  const { node, active, current } = data;
+  const hasFields = node.fields?.length > 0;
   return (
-    <g className={`data-graph-node ${node.tone} is-${node.kind}`} style={{ "--delay": `${position.order * 70}ms` }}>
-      <rect x={position.x} y={position.y} width={position.width} height={position.height} rx="8" />
-      <text className="data-graph-node-eyebrow" x={position.x + 12} y={position.y + 20}>
-        {shortLabel(node.eyebrow, 28)}
-      </text>
-      <text className="data-graph-node-label" x={position.x + 12} y={position.y + 42}>
-        {shortLabel(node.label, 28)}
-      </text>
-      <text className="data-graph-node-value" x={position.x + 12} y={position.y + 63}>
-        {shortLabel(node.value, 34)}
-      </text>
-      {node.detail ? (
-        <text className="data-graph-node-detail" x={position.x + 12} y={position.y + 82}>
-          {shortLabel(node.detail, 34)}
-        </text>
-      ) : null}
-    </g>
+    <div className={`graph-flow-node ${node.tone} is-${node.kind} ${active ? "is-active" : "is-future"} ${current ? "is-current" : ""}`}>
+      <Handle className="graph-handle" type="target" position={Position.Left} />
+      <div className="graph-flow-node-topline">
+        <span>{shortLabel(node.eyebrow || node.kind, 24)}</span>
+        <code>{node.kind}</code>
+      </div>
+      <strong>{shortLabel(node.label || node.id, 30)}</strong>
+      <p>{shortLabel(node.value || node.path || "value", 42)}</p>
+      {hasFields ? <FieldList fields={node.fields} /> : null}
+      {node.detail ? <small>{shortLabel(node.detail, 44)}</small> : null}
+      <Handle className="graph-handle" type="source" position={Position.Right} />
+    </div>
   );
 }
 
-function createLayout(graph) {
-  const width = 1024;
+function FieldList({ fields }) {
+  return (
+    <div className="graph-node-fields">
+      {fields.map((field) => (
+        <div className={`graph-node-field ${field.selected ? "is-selected" : ""} ${field.muted ? "is-muted" : ""}`} key={field.key}>
+          <code>{shortLabel(field.key, 13)}</code>
+          <span>{shortLabel(field.value, 18)}</span>
+          {field.renamedTo ? <small>{shortLabel(`-> ${field.renamedTo}`, 18)}</small> : null}
+          {field.derivedFrom ? <small>{shortLabel(`from ${field.derivedFrom}`, 18)}</small> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FocusInspector({ selection, frame, graph }) {
+  const selected = selection?.item;
+  const title = selected ? selected.label || selected.id : "Select a node or edge";
+  const details = selected ? selected.meta || {} : graph.meta || {};
+
+  return (
+    <aside className="focus-inspector" aria-label="Graph focus inspector">
+      <div className="focus-inspector-head">
+        <span>Focus inspector</span>
+        <strong>{shortLabel(title, 28)}</strong>
+      </div>
+
+      <dl className="focus-inspector-list">
+        <div>
+          <dt>Phase</dt>
+          <dd>{frame ? `${frame.phase}. ${frame.label}` : "none"}</dd>
+        </div>
+        <div>
+          <dt>Kind</dt>
+          <dd>{selected ? selected.kind : graph.meta?.operation || "graph"}</dd>
+        </div>
+        <div>
+          <dt>Path</dt>
+          <dd>{selected?.path || selected?.source || "input -> output"}</dd>
+        </div>
+        {selected?.target ? (
+          <div>
+            <dt>Target</dt>
+            <dd>{selected.target}</dd>
+          </div>
+        ) : null}
+        {selected?.value ? (
+          <div>
+            <dt>Value</dt>
+            <dd>{selected.value}</dd>
+          </div>
+        ) : null}
+      </dl>
+
+      <div className="mini-json-panel">
+        <div className="mini-json-panel-head">
+          <span>Selected metadata</span>
+          <strong>{selection?.type || "graph"}</strong>
+        </div>
+        <pre>{JSON.stringify(details, null, 2)}</pre>
+      </div>
+    </aside>
+  );
+}
+
+function createFlowLayout(graph) {
   const nodeWidth = 220;
-  const nodeHeight = 78;
-  const top = 62;
-  const rowGap = 96;
-  const maxRows = Math.max(...graph.columns.map((column) => column.nodeIds.length), 1);
-  const height = Math.max(280, top + maxRows * rowGap + 18);
-  const left = 34;
-  const right = width - nodeWidth - 34;
-  const columnGap = graph.columns.length > 1 ? (right - left) / (graph.columns.length - 1) : 0;
+  const baseNodeHeight = 116;
+  const columnGap = 330;
+  const rowGap = 34;
+  const top = 40;
+  const left = 24;
   const nodes = new Map();
+  const columns = graph.columns?.length ? graph.columns : [{ id: "graph", label: "Graph", nodeIds: graph.nodes.map((node) => node.id) }];
+  const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const columnHeights = columns.map((column) => Math.max(0, column.nodeIds.reduce((sum, nodeId) => sum + estimateNodeHeight(nodeById.get(nodeId)) + rowGap, 0) - rowGap));
+  const maxColumnHeight = Math.max(...columnHeights, baseNodeHeight);
 
-  const columns = graph.columns.map((column, columnIndex) => {
-    const x = left + columnIndex * columnGap;
-    const rows = column.nodeIds.length;
-    const columnHeight = Math.max(0, (rows - 1) * rowGap);
-    const startY = top + Math.max(0, (height - top - 18 - columnHeight - nodeHeight) / 2);
+  columns.forEach((column, columnIndex) => {
+    let y = top + Math.max(0, (maxColumnHeight - columnHeights[columnIndex]) / 2);
 
-    column.nodeIds.forEach((nodeId, rowIndex) => {
+    column.nodeIds.forEach((nodeId) => {
+      const node = nodeById.get(nodeId);
+      const height = estimateNodeHeight(node);
       nodes.set(nodeId, {
-        x,
-        y: startY + rowIndex * rowGap,
-        width: nodeWidth,
-        height: nodeHeight,
-        order: columnIndex * 10 + rowIndex
+        x: left + columnIndex * columnGap,
+        y,
+        height
       });
+      y += height + rowGap;
     });
-
-    return {
-      ...column,
-      x,
-      centerX: x + nodeWidth / 2
-    };
   });
 
-  return { width, height, columns, nodes };
+  return {
+    nodes,
+    width: left * 2 + Math.max(1, columns.length) * nodeWidth + Math.max(0, columns.length - 1) * (columnGap - nodeWidth),
+    height: Math.max(430, top * 2 + maxColumnHeight)
+  };
+}
+
+function estimateNodeHeight(node) {
+  const fieldRows = Math.min(8, node?.fields?.length || 0);
+  return 116 + fieldRows * 35;
 }

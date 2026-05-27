@@ -1,10 +1,13 @@
 import { tones } from "./data";
-import { formatCount, formatValue, getItemLabel, getItemSubtitle, getMapFieldRoutes, shortLabel, toneForIndex, toneForKey } from "./utils";
+import { defaultFrames, normalizeDataGraph } from "./dataGraphModel";
+import { formatCount, formatValue, getItemLabel, getItemSubtitle, getMapFieldRoutes, getObjectEntries, shortLabel, toneForIndex, toneForKey } from "./utils";
 
 export function createGroupByGraph({ trace, entries, groupKey, groupKeys }) {
   const inputNodes = trace.map((step, index) => ({
     id: `input-${index}`,
     kind: "object",
+    phase: 1,
+    path: `input[${index}]`,
     tone: toneForKey(step.keyValue, groupKeys),
     eyebrow: `input[${index}]`,
     label: step.itemLabel,
@@ -14,6 +17,8 @@ export function createGroupByGraph({ trace, entries, groupKey, groupKeys }) {
   const keyNodes = trace.map((step, index) => ({
     id: `key-${index}`,
     kind: "key",
+    phase: 2,
+    path: `input[${index}].${groupKey}`,
     tone: toneForKey(step.keyValue, groupKeys),
     eyebrow: `item.${groupKey}`,
     label: step.keyValue,
@@ -23,6 +28,8 @@ export function createGroupByGraph({ trace, entries, groupKey, groupKeys }) {
   const bucketNodes = entries.map(([key, items], index) => ({
     id: `bucket-${safeGraphId(key)}`,
     kind: "bucket",
+    phase: 3,
+    path: `output.${key}`,
     tone: tones[index % tones.length],
     eyebrow: "output bucket",
     label: String(key),
@@ -30,9 +37,11 @@ export function createGroupByGraph({ trace, entries, groupKey, groupKeys }) {
     detail: shortLabel(items.map((item, itemIndex) => getItemLabel(item, itemIndex)).join(", "), 32)
   }));
 
-  return {
+  return normalizeDataGraph({
     id: `group-${groupKey}`,
     title: `item.${groupKey} routes into buckets`,
+    frames: defaultFrames,
+    meta: { operation: "groupBy", groupKey },
     columns: [
       { id: "input", label: "Input objects", nodeIds: inputNodes.map((node) => node.id) },
       { id: "key", label: "Extracted key", nodeIds: keyNodes.map((node) => node.id) },
@@ -44,79 +53,106 @@ export function createGroupByGraph({ trace, entries, groupKey, groupKeys }) {
         id: `read-${index}`,
         source: `input-${index}`,
         target: `key-${index}`,
+        kind: "read",
         tone: toneForKey(step.keyValue, groupKeys),
         label: "read key",
-        phase: index
+        phase: 1,
+        meta: { item: step.item, path: `input[${index}].${groupKey}` }
       })),
       ...trace.map((step, index) => ({
         id: `route-${index}`,
         source: `key-${index}`,
         target: `bucket-${safeGraphId(step.keyValue)}`,
+        kind: "route",
         tone: toneForKey(step.keyValue, groupKeys),
         label: "append item",
-        phase: index + trace.length
+        phase: step.created ? 2 : 3,
+        meta: { item: step.item, bucket: step.keyValue }
       }))
     ]
-  };
+  });
 }
 
 export function createMapGraph({ step, index }) {
   const routes = getMapFieldRoutes(step);
-  const sourceNodes = routes.map((route, routeIndex) => ({
-    id: `source-${route.outputKey}`,
-    kind: "field",
-    tone: toneForIndex(routeIndex),
-    eyebrow: route.source.key === "fallback" ? "fallback" : `item.${route.source.key}`,
-    label: route.source.key,
-    value: formatValue(route.source.value)
-  }));
+  const selectedKeys = routes.map((route) => route.source.key).filter((key) => key !== "fallback");
+  const inputNode = {
+    id: "input-object",
+    kind: "object",
+    phase: 1,
+    path: `input[${index}]`,
+    tone: toneForIndex(index),
+    eyebrow: `input[${index}]`,
+    label: step.itemLabel,
+    value: "source object",
+    fields: objectFields(step.item, {
+      selectedKeys,
+      renameMap: Object.fromEntries(routes.map((route) => [route.source.key, route.outputKey]))
+    }),
+    meta: { item: step.item }
+  };
 
   const mapperNodes = routes.map((route, routeIndex) => ({
     id: `mapper-${route.outputKey}`,
     kind: "operator",
+    phase: 2,
+    path: `mapper.${route.outputKey}`,
     tone: toneForIndex(routeIndex),
     eyebrow: "mapper expression",
     label: `${route.outputKey}: ${route.source.key === "fallback" ? "fallback" : `item.${route.source.key}`}`,
     value: formatValue(route.source.value)
   }));
 
-  const outputNodes = routes.map((route, routeIndex) => ({
-    id: `output-${route.outputKey}`,
-    kind: "field",
-    tone: toneForIndex(routeIndex),
-    eyebrow: "output field",
-    label: route.outputKey,
-    value: formatValue(route.outputValue)
-  }));
+  const outputNode = {
+    id: "output-object",
+    kind: "object",
+    phase: 3,
+    path: `output[${index}]`,
+    tone: toneForIndex(index),
+    eyebrow: `output[${index}]`,
+    label: step.output.source || step.itemLabel,
+    value: "mapped object",
+    fields: objectFields(step.output, {
+      selectedKeys: routes.map((route) => route.outputKey),
+      derivedMap: Object.fromEntries(routes.map((route) => [route.outputKey, route.source.key]))
+    }),
+    meta: { output: step.output }
+  };
 
-  return {
+  return normalizeDataGraph({
     id: `map-${step.itemLabel}-${index}`,
-    title: `${step.itemLabel} key/value mapping`,
+    title: `${step.itemLabel} object shape becomes output[${index}]`,
+    frames: defaultFrames,
+    meta: { operation: "map", itemIndex: index, item: step.item, output: step.output },
     columns: [
-      { id: "source", label: "Input key/value", nodeIds: sourceNodes.map((node) => node.id) },
+      { id: "source", label: "Input element", nodeIds: [inputNode.id] },
       { id: "mapper", label: "Callback writes", nodeIds: mapperNodes.map((node) => node.id) },
-      { id: "output", label: "Output key/value", nodeIds: outputNodes.map((node) => node.id) }
+      { id: "output", label: "Output element", nodeIds: [outputNode.id] }
     ],
-    nodes: [...sourceNodes, ...mapperNodes, ...outputNodes],
+    nodes: [inputNode, ...mapperNodes, outputNode],
     edges: [
       ...routes.map((route, routeIndex) => ({
         id: `read-${route.outputKey}`,
-        source: `source-${route.outputKey}`,
+        source: inputNode.id,
         target: `mapper-${route.outputKey}`,
+        kind: "read",
         tone: toneForIndex(routeIndex),
-        label: "read",
-        phase: routeIndex
+        label: `${route.source.key} -> ${route.outputKey}`,
+        phase: 1,
+        meta: { source: route.source, outputKey: route.outputKey }
       })),
       ...routes.map((route, routeIndex) => ({
         id: `write-${route.outputKey}`,
         source: `mapper-${route.outputKey}`,
-        target: `output-${route.outputKey}`,
+        target: outputNode.id,
+        kind: "copy",
         tone: toneForIndex(routeIndex),
-        label: "write",
-        phase: routeIndex + routes.length
+        label: `write ${route.outputKey}`,
+        phase: 3,
+        meta: { outputKey: route.outputKey, value: route.outputValue }
       }))
     ]
-  };
+  });
 }
 
 export function createOperationGraph({ fnId, input, result, datasetName }) {
@@ -360,7 +396,12 @@ function createSumByGraph({ input, result, datasetName }) {
 }
 
 function createKeyByGraph({ input, result }) {
-  const inputNodes = input.map((item, index) => itemNode(item, index));
+  const inputNodes = input.map((item, index) => ({
+    ...itemNode(item, index),
+    value: "whole item value",
+    fields: objectFields(item, { selectedKeys: ["id"], renameMap: { id: `output.${formatValue(item?.id)}` } }),
+    meta: { item }
+  }));
   const keyNodes = input.map((item, index) => ({
     id: `key-${index}`,
     kind: "key",
@@ -371,11 +412,14 @@ function createKeyByGraph({ input, result }) {
   }));
   const outputNodes = Object.entries(result).map(([key, item], index) => ({
     id: `property-${safeGraphId(key)}`,
-    kind: "field",
+    kind: "object",
     tone: toneForIndex(index),
     eyebrow: "output property",
     label: key,
-    value: getItemLabel(item, index)
+    value: `output.${key}`,
+    path: `output.${key}`,
+    fields: objectFields(item, { valueOnly: true }),
+    meta: { property: key, value: item }
   }));
 
   return columnGraph({
@@ -391,6 +435,20 @@ function createKeyByGraph({ input, result }) {
       ...input.map((item, index) => edge(`route-${index}`, `key-${index}`, `property-${safeGraphId(item?.id)}`, toneForIndex(index), "assign", index + input.length))
     ]
   });
+}
+
+function objectFields(value, options = {}) {
+  const selectedKeys = options.selectedKeys || [];
+  const renameMap = options.renameMap || {};
+  const derivedMap = options.derivedMap || {};
+  return getObjectEntries(value).map(([key, fieldValue]) => ({
+    key,
+    value: formatValue(fieldValue),
+    selected: selectedKeys.includes(key),
+    muted: options.valueOnly ? false : selectedKeys.length > 0 && !selectedKeys.includes(key),
+    renamedTo: renameMap[key],
+    derivedFrom: derivedMap[key]
+  }));
 }
 
 function createFlatMapGraph({ input, result, datasetName }) {
@@ -464,19 +522,30 @@ function columnGraph({ id, title, columns, edges }) {
     nodeIds: nodes.map((node) => node.id)
   }));
 
-  return {
+  const phasedNodes = columns.flatMap(([, , nodes], columnIndex) =>
+    nodes.map((node) => ({
+      phase: Math.min(3, columnIndex + 1),
+      ...node
+    }))
+  );
+
+  return normalizeDataGraph({
     id,
     title,
+    frames: defaultFrames,
+    meta: { layout: "columns" },
     columns: normalizedColumns,
-    nodes: columns.flatMap(([, , nodes]) => nodes),
+    nodes: phasedNodes,
     edges
-  };
+  });
 }
 
 function itemNode(item, index) {
   return {
     id: `input-${index}`,
     kind: "object",
+    phase: 1,
+    path: `input[${index}]`,
     tone: toneForIndex(index),
     eyebrow: `input[${index}]`,
     label: getItemLabel(item, index),
@@ -485,7 +554,24 @@ function itemNode(item, index) {
 }
 
 function edge(id, source, target, tone, label, phase) {
-  return { id, source, target, tone, label, phase };
+  const kind = edgeKind(label);
+  return { id, source, target, tone, label, phase: phaseForEdgeKind(kind, label), kind, meta: { step: phase } };
+}
+
+function edgeKind(label) {
+  if (["keep", "drop", "true", "false", "append", "assign"].includes(label)) return "route";
+  if (["read key", "test", "index", "read id"].includes(label)) return "read";
+  if (["rank 1", "rank 2", "rank 3", "rank 4", "rank 5", "rank 6"].includes(label)) return "reorder";
+  if (["add", "contribute"].includes(label)) return "accumulate";
+  if (["emit", "flatten"].includes(label)) return "emit";
+  return label || "flow";
+}
+
+function phaseForEdgeKind(kind, label) {
+  if (kind === "read") return 1;
+  if (kind === "accumulate" && label === "add") return 2;
+  if (kind === "emit" && label === "emit") return 2;
+  return 3;
 }
 
 function matchesFilter(item, datasetName) {
