@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lodash Visualizer</title>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="sidebar" aria-label="Lodash functions">
+        <div class="brand">
+          <span class="brand-mark">_</span>
+          <div>
+            <h1>Lodash Visualizer</h1>
+            <p>data in motion</p>
+          </div>
+        </div>
+
+        <div class="mode-row" role="tablist" aria-label="Dataset">
+          <button class="mode-button is-active" type="button" data-dataset="orders">Orders</button>
+          <button class="mode-button" type="button" data-dataset="people">People</button>
+          <button class="mode-button" type="button" data-dataset="events">Events</button>
+        </div>
+
+        <div class="function-list" id="functionList" aria-label="Function list"></div>
+      </aside>
+
+      <section class="workbench">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow" id="categoryLabel">Collection</p>
+            <h2 id="functionTitle">_.groupBy</h2>
+          </div>
+          <div class="control-strip">
+            <button class="icon-button" type="button" id="playButton" aria-label="Replay animation" title="Replay">
+              <span aria-hidden="true">&#8635;</span>
+            </button>
+            <button class="text-button" type="button" id="resetButton">Reset JSON</button>
+          </div>
+        </header>
+
+        <section class="spotlight">
+          <div class="signature-line">
+            <code id="signatureText">_.groupBy(orders, "status")</code>
+            <span id="resultMeta">4 groups</span>
+          </div>
+          <div class="code-preview" id="codePreview"></div>
+        </section>
+
+        <section class="groupby-lab" id="groupByLab" aria-label="groupBy detail">
+          <div class="lab-heading">
+            <div>
+              <span>groupBy trace</span>
+              <strong id="groupKeySummary">item.status creates 3 buckets</strong>
+            </div>
+            <div class="key-selector" id="groupKeySelector" aria-label="Grouping key"></div>
+          </div>
+
+          <div class="dataflow-card">
+            <div class="dataflow-diagram" id="groupDataFlowDiagram" aria-label="groupBy data flow diagram"></div>
+          </div>
+
+          <div class="block-flow" id="groupBlockFlow" aria-label="groupBy data blocks">
+            <div class="block-lane">
+              <div class="block-lane-title">
+                <span>1</span>
+                <strong>Input blocks</strong>
+              </div>
+              <div class="item-block-stack" id="groupInputBlocks"></div>
+            </div>
+
+            <div class="operator-block">
+              <div class="operator-title">
+                <span>2</span>
+                <strong>Key values</strong>
+              </div>
+              <code id="groupExtractorCode">item.status</code>
+              <div class="key-block-stack" id="groupKeyBlocks"></div>
+            </div>
+
+            <div class="operator-block">
+              <div class="operator-title">
+                <span>3</span>
+                <strong>Destination buckets</strong>
+              </div>
+              <div class="route-block-stack" id="groupRouteBlocks"></div>
+            </div>
+
+            <div class="block-lane">
+              <div class="block-lane-title">
+                <span>4</span>
+                <strong>Output object</strong>
+              </div>
+              <div class="object-block" id="groupOutputBlocks"></div>
+            </div>
+          </div>
+
+          <div class="trace-grid">
+            <div class="trace-panel">
+              <div class="trace-panel-heading">
+                <span>Item block -> key -> bucket</span>
+                <strong id="groupTraceCount">0 flows</strong>
+              </div>
+              <div class="trace-list" id="groupTraceList"></div>
+            </div>
+
+            <div class="trace-panel">
+              <div class="trace-panel-heading">
+                <span>Grouped result buckets</span>
+                <strong id="groupBucketCount">0 buckets</strong>
+              </div>
+              <div class="bucket-board" id="groupBucketBoard"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="visual-grid" aria-label="Data transformation">
+          <div class="panel input-panel">
+            <div class="panel-heading">
+              <span>Input</span>
+              <strong id="inputCount">0 items</strong>
+            </div>
+            <div class="data-stage" id="inputStage"></div>
+          </div>
+
+          <div class="flow-panel" aria-hidden="true">
+            <div class="flow-line"></div>
+            <div class="flow-node" id="flowNode">group</div>
+            <div class="flow-pulse"></div>
+          </div>
+
+          <div class="panel output-panel">
+            <div class="panel-heading">
+              <span>Output</span>
+              <strong id="outputCount">0 groups</strong>
+            </div>
+            <div class="data-stage" id="outputStage"></div>
+          </div>
+        </section>
+
+        <section class="editor-grid">
+          <div class="editor-panel">
+            <div class="panel-heading">
+              <span>Sample JSON</span>
+              <strong id="jsonStatus">valid</strong>
+            </div>
+            <textarea id="jsonEditor" spellcheck="false"></textarea>
+          </div>
+          <div class="inspector-panel">
+            <div class="panel-heading">
+              <span>Result JSON</span>
+              <strong id="resultSize">0 chars</strong>
+            </div>
+            <pre id="resultJson"></pre>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="./vendor/lodash-fallback.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
