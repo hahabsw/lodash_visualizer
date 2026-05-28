@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import _ from "lodash";
 import { DataCard, ResultView } from "./visualizer/CommonViews";
+import { buildCallbackContext, buildCallbackExpressionKey, getCallbackEditorMeta, getSimpleItemPropertyExpression } from "./visualizer/callbacks";
 import { datasets, defaultDatasetName, groupKeyDefaults } from "./visualizer/data";
 import { createFunctionConfigs, defaultFunctionId } from "./visualizer/functionConfigs";
 import GroupByLab from "./visualizer/GroupByLab";
@@ -24,6 +25,7 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
   const [editorContent, setEditorContent] = useState(() => ({ json: _.cloneDeep(datasets[normalizedDatasetName]) }));
   const [jsonStatus, setJsonStatus] = useState("valid");
   const [groupKeys, setGroupKeys] = useState(groupKeyDefaults);
+  const [callbackExpressions, setCallbackExpressions] = useState({});
   const [animationSeed, setAnimationSeed] = useState(0);
   const [activeVisualizationTab, setActiveVisualizationTab] = useState(normalizedVisualizationView);
 
@@ -42,13 +44,20 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
 
   const functions = useMemo(() => createFunctionConfigs(activeGroupKey), [activeGroupKey]);
   const activeFn = functions.find((fn) => fn.id === activeFnId) || functions.find((fn) => fn.id === defaultFunctionId) || functions[0];
-  const result = useMemo(() => activeFn.run(input, datasetName), [activeFn, datasetName, input]);
+  const activeCallbackExpressionKey = useMemo(() => buildCallbackExpressionKey(activeFn.id, datasetName), [activeFn.id, datasetName]);
+  const activeCallbackContext = useMemo(
+    () => buildCallbackContext({ fnId: activeFn.id, datasetName, groupKey: activeGroupKey, input, expression: callbackExpressions[activeCallbackExpressionKey] }),
+    [activeCallbackExpressionKey, activeFn.id, activeGroupKey, callbackExpressions, datasetName, input]
+  );
+  const activeCallbackMeta = useMemo(() => getCallbackEditorMeta(activeFn.id, datasetName, activeGroupKey), [activeFn.id, activeGroupKey, datasetName]);
+  const result = useMemo(() => activeFn.run(input, datasetName, activeCallbackContext), [activeCallbackContext, activeFn, datasetName, input]);
   const resultText = JSON.stringify(result, null, 2);
   const datasetNames = useMemo(() => Object.keys(datasets), []);
   const showGroupByDetail = activeFn.id === "groupBy";
   const showMapDetail = activeFn.id === "map";
   const showUnifiedGraph = activeVisualizationTab === "graph";
   const showInputOutput = activeVisualizationTab === "io";
+  const selectedGroupKey = showGroupByDetail ? getSimpleItemPropertyExpression(activeCallbackContext?.inputExpression) : null;
 
   function buildHref(fnId, nextDataset = datasetName, nextView = activeVisualizationTab) {
     const nextQuery = new URLSearchParams(searchParams?.toString() ?? "");
@@ -112,6 +121,27 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
     updateEditor({ json: parsed, text: JSON.stringify(parsed, null, 2) }, editorContent, { contentErrors: undefined, patchResult: undefined });
   }
 
+  function updateCallbackExpression(nextExpression) {
+    setCallbackExpressions((prev) => ({ ...prev, [activeCallbackExpressionKey]: nextExpression }));
+  }
+
+  function resetCallbackExpression() {
+    setCallbackExpressions((prev) => {
+      const next = { ...prev };
+      delete next[activeCallbackExpressionKey];
+      return next;
+    });
+  }
+
+  function applyCallbackQuickKey(key) {
+    updateCallbackExpression(`item.${key}`);
+
+    if (activeFn.id === "groupBy") {
+      setGroupKeys((prev) => ({ ...prev, [datasetName]: key }));
+      setAnimationSeed((seed) => seed + 1);
+    }
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar" aria-label="Lodash functions">
@@ -150,11 +180,65 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
 
         <section className="spotlight">
           <div className="signature-line">
-            <code>{activeFn.signature(datasetName)}</code>
+            <code>{activeFn.signature(datasetName, activeCallbackContext)}</code>
             <span>{summarizeResult(result)}</span>
           </div>
-          <div className="code-preview">{activeFn.code(datasetName)}</div>
+          <div className="code-preview">{activeFn.code(datasetName, activeCallbackContext)}</div>
         </section>
+
+        {activeCallbackMeta ? (
+          <section className="callback-editor">
+            <div className="callback-editor-head">
+              <div>
+                <span>{activeCallbackMeta.label}</span>
+                <strong style={{ color: activeCallbackContext?.errorMessage ? "#a43b2e" : undefined }}>
+                  {activeCallbackContext?.usesFallback ? "using default callback" : "live callback"}
+                </strong>
+              </div>
+              <button className="text-button is-compact" type="button" onClick={resetCallbackExpression}>
+                Reset callback
+              </button>
+            </div>
+
+            <textarea
+              className="callback-expression-input"
+              rows={3}
+              spellCheck="false"
+              value={activeCallbackContext?.inputExpression ?? activeCallbackMeta.defaultExpression}
+              onChange={(event) => updateCallbackExpression(event.target.value)}
+            />
+
+            <div className="callback-editor-foot">
+              <span>{activeCallbackMeta.description}</span>
+              <strong>{activeCallbackMeta.note}</strong>
+            </div>
+
+            {groupKeyChoices.length ? (
+              <div className="callback-suggestions" aria-label="Callback quick insert">
+                {groupKeyChoices.map((key) => {
+                  const expression = `item.${key}`;
+                  const isActive = activeCallbackContext?.inputExpression?.trim() === expression;
+
+                  return (
+                    <button className={`key-button ${isActive ? "is-active" : ""}`} type="button" key={key} onClick={() => applyCallbackQuickKey(key)}>
+                      {expression}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {activeCallbackContext?.errorMessage ? (
+              <div className="callback-error">
+                Invalid callback expression. Using default callback: <code>{`item => ${activeCallbackContext.defaultExpression}`}</code>
+              </div>
+            ) : (
+              <div className="callback-status">
+                Graph and result use: <code>{`item => ${activeCallbackContext?.resolvedExpression}`}</code>
+              </div>
+            )}
+          </section>
+        ) : null}
 
         <div className="mode-row mode-row-dual visualization-tabs" role="tablist" aria-label="Visualization mode">
           <button
@@ -182,19 +266,21 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
             key={`group-lab-${animationSeed}-${datasetName}-${activeGroupKey}-${input.length}`}
             input={input}
             result={result}
-            groupKey={activeGroupKey}
+            groupKey={selectedGroupKey || ""}
             groupKeyChoices={groupKeyChoices}
+            callbackContext={activeCallbackContext}
             onGroupKeyChange={(key) => {
               setGroupKeys((prev) => ({ ...prev, [datasetName]: key }));
+              setCallbackExpressions((prev) => ({ ...prev, [buildCallbackExpressionKey("groupBy", datasetName)]: `item.${key}` }));
               setAnimationSeed((seed) => seed + 1);
             }}
           />
         ) : null}
 
-        {showUnifiedGraph && showMapDetail ? <MapLab key={`map-lab-${animationSeed}-${datasetName}-${input.length}`} input={input} result={result} /> : null}
+        {showUnifiedGraph && showMapDetail ? <MapLab key={`map-lab-${animationSeed}-${datasetName}-${input.length}`} input={input} result={result} callbackContext={activeCallbackContext} /> : null}
 
         {showUnifiedGraph && !showGroupByDetail && !showMapDetail ? (
-          <OperationGraphLab key={`operation-graph-${animationSeed}-${datasetName}-${activeFn.id}-${input.length}`} fnId={activeFn.id} input={input} result={result} datasetName={datasetName} />
+          <OperationGraphLab key={`operation-graph-${animationSeed}-${datasetName}-${activeFn.id}-${input.length}`} fnId={activeFn.id} input={input} result={result} datasetName={datasetName} callbackContext={activeCallbackContext} />
         ) : null}
 
         <section className="visual-grid" aria-label="Data transformation" hidden={!showInputOutput}>
@@ -209,8 +295,8 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
                   item={item}
                   index={index}
                   key={getItemLabel(item, index)}
-                  muted={!activeFn.isIncluded(item, datasetName, input)}
-                  highlightKey={showGroupByDetail ? activeGroupKey : null}
+                  muted={!activeFn.isIncluded(item, datasetName, input, index, activeCallbackContext)}
+                  highlightKey={showGroupByDetail ? selectedGroupKey : null}
                 />
               ))}
             </div>

@@ -183,7 +183,7 @@ button {
 
 .workbench {
   display: grid;
-  grid-template-rows: auto auto auto minmax(410px, 1fr) minmax(220px, 0.48fr);
+  grid-template-rows: auto auto auto auto minmax(410px, 1fr) minmax(220px, 0.48fr);
   gap: 18px;
   min-width: 0;
   padding: 24px;
@@ -235,7 +235,8 @@ button {
 .spotlight,
 .panel,
 .editor-panel,
-.inspector-panel {
+.inspector-panel,
+.callback-editor {
   background: rgba(255, 255, 255, 0.86);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -248,6 +249,91 @@ button {
   gap: 18px;
   align-items: stretch;
   padding: 16px;
+}
+
+.callback-editor {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.callback-editor-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.callback-editor-head span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.callback-editor-head strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.text-button.is-compact {
+  min-height: 34px;
+  padding: 0 12px;
+}
+
+.callback-expression-input {
+  min-height: 96px;
+  padding: 14px;
+  border: 1px solid rgba(232, 242, 255, 0.14);
+  border-radius: 8px;
+}
+
+.callback-editor-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.callback-editor-foot strong {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.callback-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.callback-status,
+.callback-error {
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.callback-status {
+  background: var(--panel-soft);
+  color: var(--muted);
+}
+
+.callback-error {
+  background: var(--coral-soft);
+  color: #a43b2e;
+}
+
+.callback-status code,
+.callback-error code {
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
 }
 
 .signature-line {
@@ -1949,7 +2035,7 @@ pre {
   }
 
   .workbench {
-    grid-template-rows: auto auto auto auto auto;
+    grid-template-rows: auto auto auto auto auto auto;
   }
 
   .spotlight,

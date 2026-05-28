@@ -1,8 +1,8 @@
 import { tones } from "./data";
 import { defaultFrames, normalizeDataGraph } from "./dataGraphModel";
-import { formatCount, formatValue, getItemLabel, getItemSubtitle, getMapFieldRoutes, getObjectEntries, shortLabel, toneForIndex, toneForKey } from "./utils";
+import { formatCount, formatValue, getItemLabel, getItemSubtitle, getObjectEntries, shortLabel, toneForIndex, toneForKey } from "./utils";
 
-export function createGroupByGraph({ trace, entries, groupKey, groupKeys }) {
+export function createGroupByGraph({ trace, entries, callbackExpression, groupKeys }) {
   const inputNodes = trace.map((step, index) => ({
     id: `input-${index}`,
     kind: "object",
@@ -11,16 +11,16 @@ export function createGroupByGraph({ trace, entries, groupKey, groupKeys }) {
     tone: toneForKey(step.keyValue, groupKeys),
     eyebrow: `input[${index}]`,
     label: step.itemLabel,
-    value: `${groupKey}: ${step.keyValue}`
+    value: `callback -> ${step.keyValue}`
   }));
 
   const keyNodes = trace.map((step, index) => ({
     id: `key-${index}`,
     kind: "key",
     phase: 2,
-    path: `input[${index}].${groupKey}`,
+    path: `callback(input[${index}])`,
     tone: toneForKey(step.keyValue, groupKeys),
-    eyebrow: `item.${groupKey}`,
+    eyebrow: "callback result",
     label: step.keyValue,
     value: step.created ? "create bucket" : "append"
   }));
@@ -38,13 +38,13 @@ export function createGroupByGraph({ trace, entries, groupKey, groupKeys }) {
   }));
 
   return normalizeDataGraph({
-    id: `group-${groupKey}`,
-    title: `item.${groupKey} routes into buckets`,
+    id: `group-${safeGraphId(callbackExpression)}`,
+    title: `${shortLabel(`item => ${callbackExpression}`, 46)} routes into buckets`,
     frames: defaultFrames,
-    meta: { operation: "groupBy", groupKey },
+    meta: { operation: "groupBy", callbackExpression },
     columns: [
       { id: "input", label: "Input objects", nodeIds: inputNodes.map((node) => node.id) },
-      { id: "key", label: "Extracted key", nodeIds: keyNodes.map((node) => node.id) },
+      { id: "key", label: "Callback result", nodeIds: keyNodes.map((node) => node.id) },
       { id: "bucket", label: "Output object", nodeIds: bucketNodes.map((node) => node.id) }
     ],
     nodes: [...inputNodes, ...keyNodes, ...bucketNodes],
@@ -55,9 +55,9 @@ export function createGroupByGraph({ trace, entries, groupKey, groupKeys }) {
         target: `key-${index}`,
         kind: "read",
         tone: toneForKey(step.keyValue, groupKeys),
-        label: "read key",
+        label: "run callback",
         phase: 1,
-        meta: { item: step.item, path: `input[${index}].${groupKey}` }
+        meta: { item: step.item, expression: callbackExpression }
       })),
       ...trace.map((step, index) => ({
         id: `route-${index}`,
@@ -73,9 +73,9 @@ export function createGroupByGraph({ trace, entries, groupKey, groupKeys }) {
   });
 }
 
-export function createMapGraph({ step, index }) {
-  const routes = getMapFieldRoutes(step);
-  const selectedKeys = routes.map((route) => route.source.key).filter((key) => key !== "fallback");
+export function createMapGraph({ step, index, callbackExpression }) {
+  const outputIsObject = step.output && typeof step.output === "object" && !Array.isArray(step.output);
+  const outputIsArray = Array.isArray(step.output);
   const inputNode = {
     id: "input-object",
     kind: "object",
@@ -85,103 +85,110 @@ export function createMapGraph({ step, index }) {
     eyebrow: `input[${index}]`,
     label: step.itemLabel,
     value: "source object",
-    fields: objectFields(step.item, {
-      selectedKeys,
-      renameMap: Object.fromEntries(routes.map((route) => [route.source.key, route.outputKey]))
-    }),
+    fields: objectFields(step.item),
     meta: { item: step.item }
   };
 
-  const mapperNodes = routes.map((route, routeIndex) => ({
-    id: `mapper-${route.outputKey}`,
+  const callbackNode = {
+    id: "map-callback",
     kind: "operator",
     phase: 2,
-    path: `mapper.${route.outputKey}`,
-    tone: toneForIndex(routeIndex),
-    eyebrow: "mapper expression",
-    label: `${route.outputKey}: ${route.source.key === "fallback" ? "fallback" : `item.${route.source.key}`}`,
-    value: formatValue(route.source.value)
-  }));
-
-  const outputNode = {
-    id: "output-object",
-    kind: "object",
-    phase: 3,
-    path: `output[${index}]`,
+    path: "callback",
     tone: toneForIndex(index),
-    eyebrow: `output[${index}]`,
-    label: step.output.source || step.itemLabel,
-    value: "mapped object",
-    fields: objectFields(step.output, {
-      selectedKeys: routes.map((route) => route.outputKey),
-      derivedMap: Object.fromEntries(routes.map((route) => [route.outputKey, route.source.key]))
-    }),
-    meta: { output: step.output }
+    eyebrow: "callback",
+    label: shortLabel(`item => ${callbackExpression}`, 44),
+    value: outputIsArray ? "returns array" : outputIsObject ? "returns object" : "returns value"
   };
+
+  const outputNode = outputIsObject
+    ? {
+        id: "output-object",
+        kind: "object",
+        phase: 3,
+        path: `output[${index}]`,
+        tone: toneForIndex(index),
+        eyebrow: `output[${index}]`,
+        label: getItemLabel(step.output, index),
+        value: "mapped object",
+        fields: objectFields(step.output, { valueOnly: true }),
+        meta: { output: step.output }
+      }
+    : {
+        id: "output-value",
+        kind: "value",
+        phase: 3,
+        path: `output[${index}]`,
+        tone: toneForIndex(index),
+        eyebrow: `output[${index}]`,
+        label: outputIsArray ? formatCount(step.output, "value") : formatValue(step.output),
+        value: outputIsArray ? shortLabel(step.output.map((value) => formatValue(value)).join(", "), 42) : "mapped value",
+        meta: { output: step.output }
+      };
 
   return normalizeDataGraph({
     id: `map-${step.itemLabel}-${index}`,
-    title: `${step.itemLabel} object shape becomes output[${index}]`,
+    title: `${step.itemLabel} runs through ${shortLabel(`item => ${callbackExpression}`, 30)}`,
     frames: defaultFrames,
     meta: { operation: "map", itemIndex: index, item: step.item, output: step.output },
     columns: [
       { id: "source", label: "Input element", nodeIds: [inputNode.id] },
-      { id: "mapper", label: "Callback writes", nodeIds: mapperNodes.map((node) => node.id) },
+      { id: "mapper", label: "Callback", nodeIds: [callbackNode.id] },
       { id: "output", label: "Output element", nodeIds: [outputNode.id] }
     ],
-    nodes: [inputNode, ...mapperNodes, outputNode],
+    nodes: [inputNode, callbackNode, outputNode],
     edges: [
-      ...routes.map((route, routeIndex) => ({
-        id: `read-${route.outputKey}`,
+      {
+        id: "read-map",
         source: inputNode.id,
-        target: `mapper-${route.outputKey}`,
+        target: callbackNode.id,
         kind: "read",
-        tone: toneForIndex(routeIndex),
-        label: `${route.source.key} -> ${route.outputKey}`,
+        tone: toneForIndex(index),
+        label: "run callback",
         phase: 1,
-        meta: { source: route.source, outputKey: route.outputKey }
-      })),
-      ...routes.map((route, routeIndex) => ({
-        id: `write-${route.outputKey}`,
-        source: `mapper-${route.outputKey}`,
+        meta: { expression: callbackExpression }
+      },
+      {
+        id: "write-map",
+        source: callbackNode.id,
         target: outputNode.id,
         kind: "copy",
-        tone: toneForIndex(routeIndex),
-        label: `write ${route.outputKey}`,
+        tone: toneForIndex(index),
+        label: "write result",
         phase: 3,
-        meta: { outputKey: route.outputKey, value: route.outputValue }
-      }))
+        meta: { output: step.output }
+      }
     ]
   });
 }
 
-export function createOperationGraph({ fnId, input, result, datasetName }) {
-  if (fnId === "filter") return createFilterGraph({ input, datasetName });
-  if (fnId === "orderBy") return createOrderByGraph({ input, result, datasetName });
-  if (fnId === "partition") return createPartitionGraph({ input, datasetName });
+export function createOperationGraph({ fnId, input, result, datasetName, callbackContext }) {
+  if (fnId === "filter") return createFilterGraph({ input, callbackContext });
+  if (fnId === "orderBy") return createOrderByGraph({ input, result, callbackContext });
+  if (fnId === "partition") return createPartitionGraph({ input, callbackContext });
   if (fnId === "chunk") return createChunkGraph({ input, result });
-  if (fnId === "uniqBy") return createUniqByGraph({ input, datasetName });
-  if (fnId === "sumBy") return createSumByGraph({ input, result, datasetName });
-  if (fnId === "keyBy") return createKeyByGraph({ input, result });
-  if (fnId === "flatMap") return createFlatMapGraph({ input, result, datasetName });
+  if (fnId === "uniqBy") return createUniqByGraph({ input, callbackContext });
+  if (fnId === "sumBy") return createSumByGraph({ input, result, callbackContext });
+  if (fnId === "keyBy") return createKeyByGraph({ input, result, callbackContext });
+  if (fnId === "flatMap") return createFlatMapGraph({ input, result, callbackContext });
   return createPassThroughGraph({ fnId, input, result });
 }
 
-function createFilterGraph({ input, datasetName }) {
+function createFilterGraph({ input, callbackContext }) {
+  const expressionLabel = shortLabel(callbackContext.resolvedExpression, 28);
   const inputNodes = input.map((item, index) => itemNode(item, index));
   const predicateNodes = input.map((item, index) => {
-    const passed = matchesFilter(item, datasetName);
+    const passed = Boolean(callbackContext.run(item, index, input));
     return {
       id: `predicate-${index}`,
       kind: "operator",
       tone: passed ? "tone-green" : "tone-coral",
       eyebrow: "predicate",
-      label: filterLabel(datasetName),
+      label: expressionLabel,
       value: passed ? "keep" : "drop"
     };
   });
   const outputNodes = input.map((item, index) => {
-    const passed = matchesFilter(item, datasetName);
+    const passed = Boolean(callbackContext.run(item, index, input));
     return {
       id: `out-${index}`,
       kind: passed ? "object" : "bucket",
@@ -193,8 +200,8 @@ function createFilterGraph({ input, datasetName }) {
   });
 
   return columnGraph({
-    id: `filter-${datasetName}`,
-    title: "predicate keeps or drops each item",
+    id: `filter-${safeGraphId(callbackContext.resolvedExpression)}`,
+    title: "callback keeps or drops each item",
     columns: [
       ["input", "Input array", inputNodes],
       ["predicate", "Predicate gate", predicateNodes],
@@ -207,16 +214,17 @@ function createFilterGraph({ input, datasetName }) {
   });
 }
 
-function createOrderByGraph({ input, result, datasetName }) {
-  const key = orderKey(datasetName);
+function createOrderByGraph({ input, result, callbackContext }) {
+  const expressionLabel = shortLabel(callbackContext.resolvedExpression, 28);
+  const keyValues = input.map((item, index) => callbackContext.run(item, index, input));
   const inputNodes = input.map((item, index) => itemNode(item, index));
   const keyNodes = input.map((item, index) => ({
     id: `key-${index}`,
     kind: "key",
     tone: toneForIndex(index),
-    eyebrow: `item.${key}`,
-    label: key,
-    value: formatValue(item?.[key])
+    eyebrow: getItemLabel(item, index),
+    label: formatValue(keyValues[index]),
+    value: expressionLabel
   }));
   const outputNodes = result.map((item, index) => ({
     id: `rank-${index}`,
@@ -228,8 +236,8 @@ function createOrderByGraph({ input, result, datasetName }) {
   }));
 
   return columnGraph({
-    id: `orderBy-${datasetName}`,
-    title: `sort by item.${key} descending`,
+    id: `orderBy-${safeGraphId(callbackContext.resolvedExpression)}`,
+    title: "sort by callback result descending",
     columns: [
       ["input", "Input array", inputNodes],
       ["key", "Sort key", keyNodes],
@@ -245,16 +253,17 @@ function createOrderByGraph({ input, result, datasetName }) {
   });
 }
 
-function createPartitionGraph({ input, datasetName }) {
+function createPartitionGraph({ input, callbackContext }) {
+  const expressionLabel = shortLabel(callbackContext.resolvedExpression, 28);
   const inputNodes = input.map((item, index) => itemNode(item, index));
   const predicateNodes = input.map((item, index) => {
-    const passed = matchesPartition(item, datasetName);
+    const passed = Boolean(callbackContext.run(item, index, input));
     return {
       id: `predicate-${index}`,
       kind: "operator",
       tone: passed ? "tone-teal" : "tone-gold",
       eyebrow: "predicate",
-      label: partitionLabel(datasetName),
+      label: expressionLabel,
       value: passed ? "true" : "false"
     };
   });
@@ -264,8 +273,8 @@ function createPartitionGraph({ input, datasetName }) {
   ];
 
   return columnGraph({
-    id: `partition-${datasetName}`,
-    title: "predicate splits one array into two arrays",
+    id: `partition-${safeGraphId(callbackContext.resolvedExpression)}`,
+    title: "callback splits one array into two arrays",
     columns: [
       ["input", "Input array", inputNodes],
       ["predicate", "Predicate gate", predicateNodes],
@@ -274,7 +283,7 @@ function createPartitionGraph({ input, datasetName }) {
     edges: [
       ...input.map((_, index) => edge(`read-${index}`, `input-${index}`, `predicate-${index}`, predicateNodes[index].tone, "test", index)),
       ...input.map((item, index) => {
-        const passed = matchesPartition(item, datasetName);
+        const passed = Boolean(callbackContext.run(item, index, input));
         return edge(`route-${index}`, `predicate-${index}`, passed ? "bucket-true" : "bucket-false", predicateNodes[index].tone, passed ? "true" : "false", index + input.length);
       })
     ]
@@ -315,19 +324,20 @@ function createChunkGraph({ input, result }) {
   });
 }
 
-function createUniqByGraph({ input, datasetName }) {
-  const key = uniqKey(datasetName);
+function createUniqByGraph({ input, callbackContext }) {
   const seen = new Set();
+  const expressionLabel = shortLabel(callbackContext.resolvedExpression, 28);
+  const keyValues = input.map((item, index) => callbackContext.run(item, index, input));
   const inputNodes = input.map((item, index) => itemNode(item, index));
   const keyNodes = input.map((item, index) => {
-    const value = formatValue(item?.[key]);
+    const value = formatValue(keyValues[index]);
     const first = !seen.has(value);
     seen.add(value);
     return {
       id: `key-${index}`,
       kind: "key",
       tone: first ? "tone-green" : "tone-coral",
-      eyebrow: `item.${key}`,
+      eyebrow: "callback value",
       label: value,
       value: first ? "first seen" : "duplicate"
     };
@@ -342,8 +352,8 @@ function createUniqByGraph({ input, datasetName }) {
   }));
 
   return columnGraph({
-    id: `uniqBy-${datasetName}`,
-    title: `keep the first item for each item.${key}`,
+    id: `uniqBy-${safeGraphId(callbackContext.resolvedExpression)}`,
+    title: `keep the first item for each ${expressionLabel}`,
     columns: [
       ["input", "Input array", inputNodes],
       ["key", "Uniq key", keyNodes],
@@ -356,33 +366,34 @@ function createUniqByGraph({ input, datasetName }) {
   });
 }
 
-function createSumByGraph({ input, result, datasetName }) {
-  const key = sumKey(datasetName);
+function createSumByGraph({ input, result, callbackContext }) {
+  const callbackValues = input.map((item, index) => Number(callbackContext.run(item, index, input)) || 0);
+  const expressionLabel = shortLabel(callbackContext.resolvedExpression, 28);
   const valueNodes = input.map((item, index) => ({
     id: `value-${index}`,
     kind: "field",
     tone: toneForIndex(index),
-    eyebrow: `item.${key}`,
-    label: getItemLabel(item, index),
-    value: formatValue(item?.[key])
+    eyebrow: getItemLabel(item, index),
+    label: formatValue(callbackValues[index]),
+    value: expressionLabel
   }));
   let running = 0;
   const accumulatorNodes = input.map((item, index) => {
-    running += Number(item?.[key]) || 0;
+    running += callbackValues[index];
     return {
       id: `acc-${index}`,
       kind: "operator",
       tone: toneForIndex(index),
       eyebrow: "accumulator",
-      label: `sum + ${formatValue(item?.[key])}`,
+      label: `sum + ${formatValue(callbackValues[index])}`,
       value: formatValue(running)
     };
   });
   const totalNode = { id: "total", kind: "value", tone: "tone-green", eyebrow: "output value", label: "total", value: formatValue(result) };
 
   return columnGraph({
-    id: `sumBy-${datasetName}`,
-    title: `add every item.${key} into one number`,
+    id: `sumBy-${safeGraphId(callbackContext.resolvedExpression)}`,
+    title: "add every callback result into one number",
     columns: [
       ["value", "Input values", valueNodes],
       ["acc", "Running sum", accumulatorNodes],
@@ -395,20 +406,22 @@ function createSumByGraph({ input, result, datasetName }) {
   });
 }
 
-function createKeyByGraph({ input, result }) {
+function createKeyByGraph({ input, result, callbackContext }) {
+  const propertyKeys = input.map((item, index) => String(callbackContext.run(item, index, input)));
+  const expressionLabel = shortLabel(callbackContext.resolvedExpression, 28);
   const inputNodes = input.map((item, index) => ({
     ...itemNode(item, index),
     value: "whole item value",
-    fields: objectFields(item, { selectedKeys: ["id"], renameMap: { id: `output.${formatValue(item?.id)}` } }),
+    fields: objectFields(item),
     meta: { item }
   }));
   const keyNodes = input.map((item, index) => ({
     id: `key-${index}`,
     kind: "key",
     tone: toneForIndex(index),
-    eyebrow: "item.id",
-    label: formatValue(item?.id),
-    value: "object property"
+    eyebrow: "callback key",
+    label: propertyKeys[index],
+    value: expressionLabel
   }));
   const outputNodes = Object.entries(result).map(([key, item], index) => ({
     id: `property-${safeGraphId(key)}`,
@@ -423,16 +436,16 @@ function createKeyByGraph({ input, result }) {
   }));
 
   return columnGraph({
-    id: "keyBy-id",
-    title: "item.id becomes the output object key",
+    id: `keyBy-${safeGraphId(callbackContext.resolvedExpression)}`,
+    title: "callback result becomes the output object key",
     columns: [
       ["input", "Input array", inputNodes],
       ["key", "Property key", keyNodes],
       ["output", "Output object", outputNodes]
     ],
     edges: [
-      ...input.map((_, index) => edge(`read-${index}`, `input-${index}`, `key-${index}`, toneForIndex(index), "read id", index)),
-      ...input.map((item, index) => edge(`route-${index}`, `key-${index}`, `property-${safeGraphId(item?.id)}`, toneForIndex(index), "assign", index + input.length))
+      ...input.map((_, index) => edge(`read-${index}`, `input-${index}`, `key-${index}`, toneForIndex(index), "read key", index)),
+      ...input.map((_, index) => edge(`route-${index}`, `key-${index}`, `property-${safeGraphId(propertyKeys[index])}`, toneForIndex(index), "assign", index + input.length))
     ]
   });
 }
@@ -451,11 +464,12 @@ function objectFields(value, options = {}) {
   }));
 }
 
-function createFlatMapGraph({ input, result, datasetName }) {
+function createFlatMapGraph({ input, result, callbackContext }) {
   const inputNodes = input.map((item, index) => itemNode(item, index));
   const emitted = [];
   input.forEach((item, inputIndex) => {
-    flatMapValues(item, datasetName).forEach((value, valueIndex) => {
+    const callbackValue = callbackContext.run(item, inputIndex, input);
+    emittedValues(callbackValue).forEach((value, valueIndex) => {
       emitted.push({ inputIndex, valueIndex, value, outputIndex: emitted.length });
     });
   });
@@ -478,8 +492,8 @@ function createFlatMapGraph({ input, result, datasetName }) {
   }));
 
   return columnGraph({
-    id: `flatMap-${datasetName}`,
-    title: "each item emits values that are flattened into one array",
+    id: `flatMap-${safeGraphId(callbackContext.resolvedExpression)}`,
+    title: "callback emits values that are flattened into one array",
     columns: [
       ["input", "Input array", inputNodes],
       ["emit", "Emitted values", emitNodes],
@@ -490,6 +504,10 @@ function createFlatMapGraph({ input, result, datasetName }) {
       ...emitted.map((entry) => edge(`flat-${entry.outputIndex}`, `emit-${entry.inputIndex}-${entry.valueIndex}`, `flat-${entry.outputIndex}`, toneForIndex(entry.inputIndex), "flatten", entry.outputIndex + emitted.length))
     ]
   });
+}
+
+function emittedValues(value) {
+  return Array.isArray(value) ? value : [value];
 }
 
 function createPassThroughGraph({ fnId, input, result }) {
@@ -572,54 +590,6 @@ function phaseForEdgeKind(kind, label) {
   if (kind === "accumulate" && label === "add") return 2;
   if (kind === "emit" && label === "emit") return 2;
   return 3;
-}
-
-function matchesFilter(item, datasetName) {
-  if (datasetName === "orders") return item.total >= 100;
-  if (datasetName === "people") return item.active;
-  return item.device === "mobile";
-}
-
-function matchesPartition(item, datasetName) {
-  if (datasetName === "orders") return item.status === "paid";
-  if (datasetName === "people") return item.score >= 85;
-  return item.device === "mobile";
-}
-
-function filterLabel(datasetName) {
-  if (datasetName === "orders") return "total >= 100";
-  if (datasetName === "people") return "active === true";
-  return 'device === "mobile"';
-}
-
-function partitionLabel(datasetName) {
-  if (datasetName === "orders") return 'status === "paid"';
-  if (datasetName === "people") return "score >= 85";
-  return 'device === "mobile"';
-}
-
-function orderKey(datasetName) {
-  if (datasetName === "events") return "minute";
-  if (datasetName === "people") return "score";
-  return "total";
-}
-
-function uniqKey(datasetName) {
-  if (datasetName === "orders") return "region";
-  if (datasetName === "people") return "team";
-  return "page";
-}
-
-function sumKey(datasetName) {
-  if (datasetName === "people") return "score";
-  if (datasetName === "events") return "value";
-  return "total";
-}
-
-function flatMapValues(item, datasetName) {
-  if (datasetName === "orders") return item.items || [];
-  if (datasetName === "people") return item.skills || [];
-  return [item.page, item.kind];
 }
 
 function safeGraphId(value) {

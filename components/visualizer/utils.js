@@ -1,10 +1,10 @@
 import _ from "lodash";
 import { preferredGroupKeys, tones } from "./data";
 
-export function buildGroupTrace(input, groupKey) {
+export function buildGroupTrace(input, callbackContext) {
   const buckets = {};
-  return input.map((item, index) => {
-    const rawValue = getItemValue(item, groupKey);
+  return input.map((item, index, array) => {
+    const rawValue = callbackContext.run(item, index, array);
     const keyValue = normalizeGroupValue(rawValue);
     const hadBucket = Object.prototype.hasOwnProperty.call(buckets, keyValue);
     buckets[keyValue] = buckets[keyValue] || [];
@@ -14,7 +14,7 @@ export function buildGroupTrace(input, groupKey) {
       item,
       itemIndex: index,
       itemLabel: getItemLabel(item, index),
-      keyName: groupKey,
+      keyName: callbackContext.resolvedExpression,
       keyValue,
       created: !hadBucket,
       bucketSize: buckets[keyValue].length
@@ -24,24 +24,11 @@ export function buildGroupTrace(input, groupKey) {
 
 export function buildMapTrace(input, result) {
   return input.map((item, index) => {
-    const labelSource = pickFirstSource(item, ["customer", "name", "page", "id"], `item ${index + 1}`);
-    const valueSource = pickFirstSource(item, ["total", "score", "value"], null);
-    const sourceSource = pickFirstSource(item, ["id"], getItemLabel(item, index));
-    const output =
-      result[index] || {
-        label: labelSource.value,
-        value: valueSource.value,
-        source: sourceSource.value
-      };
-
     return {
       item,
       itemIndex: index,
       itemLabel: getItemLabel(item, index),
-      labelSource,
-      valueSource,
-      sourceSource,
-      output
+      output: result[index]
     };
   });
 }
@@ -82,8 +69,14 @@ export function getGroupKeyChoices(input, datasetName) {
     });
   });
 
-  const preferred = preferredGroupKeys[datasetName] || [];
-  return [...preferred, ...discovered].filter((key, index, list) => key && list.indexOf(key) === index).slice(0, 8);
+  if (!discovered.length) {
+    return (preferredGroupKeys[datasetName] || []).slice(0, 8);
+  }
+
+  const preferred = (preferredGroupKeys[datasetName] || []).filter((key) => discovered.includes(key));
+  const remaining = discovered.filter((key) => !preferred.includes(key));
+
+  return [...preferred, ...remaining].slice(0, 8);
 }
 
 export function getItemValue(item, key) {

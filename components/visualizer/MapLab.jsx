@@ -5,12 +5,12 @@ import DataGraphCanvas from "./DataGraphCanvas";
 import { createMapGraph } from "./graphAdapters";
 import { buildMapTrace } from "./utils";
 
-export default function MapLab({ input, result }) {
+export default function MapLab({ input, result, callbackContext }) {
   const trace = useMemo(() => buildMapTrace(input, result), [input, result]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const safeSelectedIndex = trace.length ? Math.min(selectedIndex, trace.length - 1) : 0;
   const selectedStep = trace[safeSelectedIndex];
-  const graph = useMemo(() => (selectedStep ? createMapGraph({ step: selectedStep, index: safeSelectedIndex }) : null), [safeSelectedIndex, selectedStep]);
+  const graph = useMemo(() => (selectedStep ? createMapGraph({ step: selectedStep, index: safeSelectedIndex, callbackExpression: callbackContext.resolvedExpression }) : null), [callbackContext.resolvedExpression, safeSelectedIndex, selectedStep]);
 
   useEffect(() => {
     if (selectedIndex >= trace.length) setSelectedIndex(Math.max(0, trace.length - 1));
@@ -21,7 +21,7 @@ export default function MapLab({ input, result }) {
       <div className="lab-heading">
         <div>
           <span>map data flow</span>
-          <strong>focus one item transformation</strong>
+          <strong>item =&gt; {callbackContext.resolvedExpression}</strong>
         </div>
         <div className="focus-selector" aria-label="Focused input item">
           {trace.map((step, index) => (

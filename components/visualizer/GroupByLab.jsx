@@ -5,12 +5,12 @@ import DataGraphCanvas from "./DataGraphCanvas";
 import { createGroupByGraph } from "./graphAdapters";
 import { buildGroupTrace } from "./utils";
 
-export default function GroupByLab({ input, result, groupKey, groupKeyChoices, onGroupKeyChange }) {
-  const trace = useMemo(() => buildGroupTrace(input, groupKey), [input, groupKey]);
+export default function GroupByLab({ input, result, groupKey, groupKeyChoices, onGroupKeyChange, callbackContext }) {
+  const trace = useMemo(() => buildGroupTrace(input, callbackContext), [callbackContext, input]);
   const entries = useMemo(() => Object.entries(result), [result]);
   const groupKeys = entries.map(([key]) => key);
   const values = groupKeys.join(", ") || "no buckets";
-  const graph = useMemo(() => createGroupByGraph({ trace, entries, groupKey, groupKeys }), [entries, groupKey, groupKeys, trace]);
+  const graph = useMemo(() => createGroupByGraph({ trace, entries, callbackExpression: callbackContext.resolvedExpression, groupKeys }), [callbackContext.resolvedExpression, entries, groupKeys, trace]);
 
   return (
     <section className="groupby-lab" aria-label="groupBy detail">
@@ -18,10 +18,10 @@ export default function GroupByLab({ input, result, groupKey, groupKeyChoices, o
         <div>
           <span>groupBy data flow</span>
           <strong>
-            item.{groupKey} -&gt; {values}
+            item =&gt; {callbackContext.resolvedExpression} -&gt; {values}
           </strong>
         </div>
-        <div className="key-selector" aria-label="Grouping key">
+        <div className="key-selector" aria-label="Grouping key quick select">
           {groupKeyChoices.map((key) => (
             <button className={`key-button ${key === groupKey ? "is-active" : ""}`} type="button" key={key} onClick={() => onGroupKeyChange(key)}>
               {key}
