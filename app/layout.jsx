@@ -1,4 +1,5 @@
 import "@xyflow/react/dist/style.css";
+import "react-json-view-lite/dist/index.css";
 import "../styles.css";
 
 export const metadata = {

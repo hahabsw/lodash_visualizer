@@ -30,6 +30,7 @@ export default function DataGraphCanvas({ graph }) {
   const [currentPhase, setCurrentPhase] = useState(firstPhase);
   const [selection, setSelection] = useState(null);
   const layout = useMemo(() => createFlowLayout(dataGraph), [dataGraph]);
+  const canvasHeight = Math.max(430, Math.min(layout.height, 720));
 
   useEffect(() => {
     setCurrentPhase(firstPhase);
@@ -98,7 +99,7 @@ export default function DataGraphCanvas({ graph }) {
       <TimelinePlayer frames={dataGraph.frames} currentPhase={currentPhase} onPhaseChange={setCurrentPhase} />
 
       <div className="data-graph-workspace">
-        <div className="data-graph-flow" style={{ minHeight: layout.height }}>
+        <div className="data-graph-flow" style={{ height: canvasHeight }}>
           <ReactFlow
             nodes={flowNodes}
             edges={flowEdges}

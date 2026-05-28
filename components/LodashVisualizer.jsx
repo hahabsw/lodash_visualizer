@@ -7,9 +7,10 @@ import { DataCard, ResultView } from "./visualizer/CommonViews";
 import { datasets, defaultDatasetName, groupKeyDefaults } from "./visualizer/data";
 import { createFunctionConfigs, defaultFunctionId } from "./visualizer/functionConfigs";
 import GroupByLab from "./visualizer/GroupByLab";
+import JsonWorkbench from "./visualizer/JsonWorkbench";
 import MapLab from "./visualizer/MapLab";
 import OperationGraphLab from "./visualizer/OperationGraphLab";
-import { capitalize, formatCount, getGroupKeyChoices, getItemLabel, summarizeResult } from "./visualizer/utils";
+import { formatCount, getGroupKeyChoices, getItemLabel, summarizeResult } from "./visualizer/utils";
 
 export default function LodashVisualizer({ activeFnId = defaultFunctionId, initialDatasetName = defaultDatasetName }) {
   const normalizedDatasetName = datasets[initialDatasetName] ? initialDatasetName : defaultDatasetName;
@@ -33,6 +34,7 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
   const activeFn = functions.find((fn) => fn.id === activeFnId) || functions.find((fn) => fn.id === defaultFunctionId) || functions[0];
   const result = useMemo(() => activeFn.run(input, datasetName), [activeFn, datasetName, input]);
   const resultText = JSON.stringify(result, null, 2);
+  const datasetNames = useMemo(() => Object.keys(datasets), []);
   const showGroupByDetail = activeFn.id === "groupBy";
   const showMapDetail = activeFn.id === "map";
 
@@ -75,15 +77,6 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
             <p>data in motion</p>
           </div>
         </div>
-
-        <div className="mode-row" role="tablist" aria-label="Dataset">
-          {Object.keys(datasets).map((name) => (
-            <button className={`mode-button ${datasetName === name ? "is-active" : ""}`} type="button" key={name} onClick={() => selectDataset(name)}>
-              {capitalize(name)}
-            </button>
-          ))}
-        </div>
-
         <nav className="function-list" aria-label="Function list">
           {functions.map((fn) => (
             <Link className={`function-button ${fn.id === activeFn.id ? "is-active" : ""}`} href={`/${fn.id}?dataset=${datasetName}`} key={fn.id}>
@@ -138,60 +131,53 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
           <OperationGraphLab key={`operation-graph-${animationSeed}-${datasetName}-${activeFn.id}-${input.length}`} fnId={activeFn.id} input={input} result={result} datasetName={datasetName} />
         ) : null}
 
-        {!showMapDetail ? (
-          <section className="visual-grid" aria-label="Data transformation">
-            <div className="panel input-panel">
-              <div className="panel-heading">
-                <span>Input</span>
-                <strong>{formatCount(input, "item")}</strong>
-              </div>
-              <div className="data-stage" key={`input-${animationSeed}-${activeFn.id}`}>
-                {input.map((item, index) => (
-                  <DataCard
-                    item={item}
-                    index={index}
-                    key={getItemLabel(item, index)}
-                    muted={!activeFn.isIncluded(item, datasetName, input)}
-                    highlightKey={showGroupByDetail ? activeGroupKey : null}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="flow-panel" aria-hidden="true">
-              <div className="flow-line" />
-              <div className="flow-node">{activeFn.flow}</div>
-              <div className="flow-pulse" />
-            </div>
-
-            <div className="panel output-panel">
-              <div className="panel-heading">
-                <span>Output</span>
-                <strong>{summarizeResult(result)}</strong>
-              </div>
-              <div className="data-stage" key={`output-${animationSeed}-${activeFn.id}`}>
-                <ResultView result={result} />
-              </div>
-            </div>
-          </section>
-        ) : null}
-
-        <section className="editor-grid">
-          <div className="editor-panel">
+        <section className="visual-grid" aria-label="Data transformation">
+          <div className="panel input-panel">
             <div className="panel-heading">
-              <span>Sample JSON</span>
-              <strong style={{ color: jsonStatus === "invalid" ? "#b53224" : undefined }}>{jsonStatus}</strong>
+              <span>Input</span>
+              <strong>{formatCount(input, "item")}</strong>
             </div>
-            <textarea value={editorText} onChange={(event) => updateEditor(event.target.value)} spellCheck="false" />
+            <div className="data-stage" key={`input-${animationSeed}-${activeFn.id}`}>
+              {input.map((item, index) => (
+                <DataCard
+                  item={item}
+                  index={index}
+                  key={getItemLabel(item, index)}
+                  muted={!activeFn.isIncluded(item, datasetName, input)}
+                  highlightKey={showGroupByDetail ? activeGroupKey : null}
+                />
+              ))}
+            </div>
           </div>
-          <div className="inspector-panel">
+
+          <div className="flow-panel" aria-hidden="true">
+            <div className="flow-line" />
+            <div className="flow-node">{activeFn.flow}</div>
+            <div className="flow-pulse" />
+          </div>
+
+          <div className="panel output-panel">
             <div className="panel-heading">
-              <span>Result JSON</span>
-              <strong>{resultText.length} chars</strong>
+              <span>Output</span>
+              <strong>{summarizeResult(result)}</strong>
             </div>
-            <pre>{resultText}</pre>
+            <div className="data-stage" key={`output-${animationSeed}-${activeFn.id}`}>
+              <ResultView result={result} />
+            </div>
           </div>
         </section>
+
+        <JsonWorkbench
+          datasetName={datasetName}
+          datasetNames={datasetNames}
+          editorText={editorText}
+          jsonStatus={jsonStatus}
+          input={input}
+          onDatasetChange={selectDataset}
+          onEditorChange={updateEditor}
+          result={result}
+          resultTextLength={resultText.length}
+        />
       </section>
     </main>
   );
