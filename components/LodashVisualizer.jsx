@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import _ from "lodash";
 import { DataCard, ResultView } from "./visualizer/CommonViews";
@@ -12,14 +13,19 @@ import MapLab from "./visualizer/MapLab";
 import OperationGraphLab from "./visualizer/OperationGraphLab";
 import { formatCount, getGroupKeyChoices, getItemLabel, summarizeResult } from "./visualizer/utils";
 
-export default function LodashVisualizer({ activeFnId = defaultFunctionId, initialDatasetName = defaultDatasetName }) {
+export default function LodashVisualizer({ activeFnId = defaultFunctionId, initialDatasetName = defaultDatasetName, initialVisualizationView = "graph" }) {
   const normalizedDatasetName = datasets[initialDatasetName] ? initialDatasetName : defaultDatasetName;
+  const normalizedVisualizationView = initialVisualizationView === "io" ? "io" : "graph";
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [datasetName, setDatasetName] = useState(normalizedDatasetName);
   const [input, setInput] = useState(() => _.cloneDeep(datasets[normalizedDatasetName]));
   const [editorContent, setEditorContent] = useState(() => ({ json: _.cloneDeep(datasets[normalizedDatasetName]) }));
   const [jsonStatus, setJsonStatus] = useState("valid");
   const [groupKeys, setGroupKeys] = useState(groupKeyDefaults);
   const [animationSeed, setAnimationSeed] = useState(0);
+  const [activeVisualizationTab, setActiveVisualizationTab] = useState(normalizedVisualizationView);
 
   const groupKeyChoices = useMemo(() => getGroupKeyChoices(input, datasetName), [input, datasetName]);
   const activeGroupKey = groupKeys[datasetName] || groupKeyChoices[0] || groupKeyDefaults[datasetName] || "id";
@@ -30,6 +36,10 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
     }
   }, [activeGroupKey, datasetName, groupKeyChoices]);
 
+  useEffect(() => {
+    setActiveVisualizationTab(normalizedVisualizationView);
+  }, [normalizedVisualizationView]);
+
   const functions = useMemo(() => createFunctionConfigs(activeGroupKey), [activeGroupKey]);
   const activeFn = functions.find((fn) => fn.id === activeFnId) || functions.find((fn) => fn.id === defaultFunctionId) || functions[0];
   const result = useMemo(() => activeFn.run(input, datasetName), [activeFn, datasetName, input]);
@@ -37,6 +47,24 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
   const datasetNames = useMemo(() => Object.keys(datasets), []);
   const showGroupByDetail = activeFn.id === "groupBy";
   const showMapDetail = activeFn.id === "map";
+  const showUnifiedGraph = activeVisualizationTab === "graph";
+  const showInputOutput = activeVisualizationTab === "io";
+
+  function buildHref(fnId, nextDataset = datasetName, nextView = activeVisualizationTab) {
+    const nextQuery = new URLSearchParams(searchParams?.toString() ?? "");
+    nextQuery.set("dataset", nextDataset);
+    nextQuery.set("view", nextView);
+    return `/${fnId}?${nextQuery.toString()}`;
+  }
+
+  function updateUrl(nextDataset = datasetName, nextView = activeVisualizationTab) {
+    router.replace(buildHref(activeFn.id, nextDataset, nextView), { scroll: false });
+  }
+
+  function selectVisualizationTab(nextView) {
+    setActiveVisualizationTab(nextView);
+    updateUrl(datasetName, nextView);
+  }
 
   function selectDataset(nextDataset) {
     const nextInput = _.cloneDeep(datasets[nextDataset]);
@@ -45,6 +73,7 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
     setEditorContent({ json: nextInput });
     setJsonStatus("valid");
     setAnimationSeed((seed) => seed + 1);
+    updateUrl(nextDataset, activeVisualizationTab);
   }
 
   function resetJson() {
@@ -95,7 +124,7 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
         </div>
         <nav className="function-list" aria-label="Function list">
           {functions.map((fn) => (
-            <Link className={`function-button ${fn.id === activeFn.id ? "is-active" : ""}`} href={`/${fn.id}?dataset=${datasetName}`} key={fn.id}>
+            <Link className={`function-button ${fn.id === activeFn.id ? "is-active" : ""}`} href={buildHref(fn.id)} key={fn.id}>
               <span>{fn.name}</span>
               <small>{fn.category}</small>
             </Link>
@@ -127,7 +156,28 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
           <div className="code-preview">{activeFn.code(datasetName)}</div>
         </section>
 
-        {showGroupByDetail ? (
+        <div className="mode-row mode-row-dual visualization-tabs" role="tablist" aria-label="Visualization mode">
+          <button
+            className={`mode-button ${showUnifiedGraph ? "is-active" : ""}`}
+            type="button"
+            role="tab"
+            aria-selected={showUnifiedGraph}
+            onClick={() => selectVisualizationTab("graph")}
+          >
+            Data Graph
+          </button>
+          <button
+            className={`mode-button ${showInputOutput ? "is-active" : ""}`}
+            type="button"
+            role="tab"
+            aria-selected={showInputOutput}
+            onClick={() => selectVisualizationTab("io")}
+          >
+            Input / Output
+          </button>
+        </div>
+
+        {showUnifiedGraph && showGroupByDetail ? (
           <GroupByLab
             key={`group-lab-${animationSeed}-${datasetName}-${activeGroupKey}-${input.length}`}
             input={input}
@@ -141,13 +191,13 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
           />
         ) : null}
 
-        {showMapDetail ? <MapLab key={`map-lab-${animationSeed}-${datasetName}-${input.length}`} input={input} result={result} /> : null}
+        {showUnifiedGraph && showMapDetail ? <MapLab key={`map-lab-${animationSeed}-${datasetName}-${input.length}`} input={input} result={result} /> : null}
 
-        {!showGroupByDetail && !showMapDetail ? (
+        {showUnifiedGraph && !showGroupByDetail && !showMapDetail ? (
           <OperationGraphLab key={`operation-graph-${animationSeed}-${datasetName}-${activeFn.id}-${input.length}`} fnId={activeFn.id} input={input} result={result} datasetName={datasetName} />
         ) : null}
 
-        <section className="visual-grid" aria-label="Data transformation">
+        <section className="visual-grid" aria-label="Data transformation" hidden={!showInputOutput}>
           <div className="panel input-panel">
             <div className="panel-heading">
               <span>Input</span>

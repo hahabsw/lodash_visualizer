@@ -106,6 +106,10 @@ button {
   border-radius: 8px;
 }
 
+.mode-row-dual {
+  grid-template-columns: repeat(2, 1fr);
+}
+
 .mode-button,
 .text-button,
 .function-button,
@@ -126,6 +130,11 @@ button {
   background: #fff;
   color: var(--ink);
   box-shadow: 0 5px 14px rgba(24, 32, 47, 0.08);
+}
+
+.visualization-tabs {
+  align-self: start;
+  width: min(460px, 100%);
 }
 
 .function-list {
