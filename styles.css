@@ -1627,7 +1627,7 @@ button {
   display: grid;
   grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr);
   gap: 14px;
-  min-height: 0;
+  min-height: 760px;
 }
 
 .panel-heading-stack {
@@ -1668,18 +1668,19 @@ button {
 
 .json-editor-stack {
   display: grid;
-  grid-template-rows: minmax(220px, 0.95fr) minmax(170px, 0.8fr);
+  grid-template-rows: minmax(540px, 1fr) minmax(150px, auto);
   min-height: 0;
 }
 
-.json-editor-textarea {
-  min-height: 220px;
+.json-editor-live {
+  min-height: 540px;
   border-bottom: 1px solid var(--line);
+  background: #101823;
 }
 
 .json-preview-card {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
   min-height: 0;
   background: #101823;
 }
@@ -1707,24 +1708,37 @@ button {
 }
 
 .json-preview-empty {
-  display: grid;
-  place-items: center;
-  padding: 18px;
+  padding: 18px 20px 22px;
   color: #91a8bd;
   font-size: 12px;
   font-weight: 800;
-  text-align: center;
+  line-height: 1.6;
 }
 
 .json-view-shell {
   overflow: auto;
   min-height: 0;
+  min-height: 700px;
   padding: 12px 14px 16px;
   background: #101823;
 }
 
 .json-view-shell.is-result {
   height: 100%;
+  min-height: 700px;
+}
+
+.json-editor-host {
+  height: 100%;
+}
+
+.json-editor-host .monaco-editor,
+.json-editor-host .monaco-editor .overflow-guard {
+  height: 100%;
+}
+
+.json-view-shell.is-preview {
+  min-height: 220px;
 }
 
 .json-tree-view {

@@ -16,7 +16,7 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
   const normalizedDatasetName = datasets[initialDatasetName] ? initialDatasetName : defaultDatasetName;
   const [datasetName, setDatasetName] = useState(normalizedDatasetName);
   const [input, setInput] = useState(() => _.cloneDeep(datasets[normalizedDatasetName]));
-  const [editorText, setEditorText] = useState(() => JSON.stringify(datasets[normalizedDatasetName], null, 2));
+  const [editorContent, setEditorContent] = useState(() => ({ json: _.cloneDeep(datasets[normalizedDatasetName]) }));
   const [jsonStatus, setJsonStatus] = useState("valid");
   const [groupKeys, setGroupKeys] = useState(groupKeyDefaults);
   const [animationSeed, setAnimationSeed] = useState(0);
@@ -42,7 +42,7 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
     const nextInput = _.cloneDeep(datasets[nextDataset]);
     setDatasetName(nextDataset);
     setInput(nextInput);
-    setEditorText(JSON.stringify(nextInput, null, 2));
+    setEditorContent({ json: nextInput });
     setJsonStatus("valid");
     setAnimationSeed((seed) => seed + 1);
   }
@@ -50,20 +50,26 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
   function resetJson() {
     const nextInput = _.cloneDeep(datasets[datasetName]);
     setInput(nextInput);
-    setEditorText(JSON.stringify(nextInput, null, 2));
+    setEditorContent({ json: nextInput });
     setJsonStatus("valid");
     setAnimationSeed((seed) => seed + 1);
   }
 
-  function updateEditor(value) {
-    setEditorText(value);
+  function updateEditor(content, _previousContent, status) {
+    setEditorContent(content);
+
+    if (status?.contentErrors?.length) {
+      setJsonStatus("invalid syntax");
+      return;
+    }
+
     try {
-      const parsed = JSON.parse(value);
+      const parsed = content.json;
       if (!Array.isArray(parsed)) throw new Error("Root must be an array");
       setInput(parsed);
       setJsonStatus("valid");
     } catch {
-      setJsonStatus("invalid");
+      setJsonStatus("root must be an array");
     }
   }
 
@@ -170,9 +176,8 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
         <JsonWorkbench
           datasetName={datasetName}
           datasetNames={datasetNames}
-          editorText={editorText}
+          editorContent={editorContent}
           jsonStatus={jsonStatus}
-          input={input}
           onDatasetChange={selectDataset}
           onEditorChange={updateEditor}
           result={result}
