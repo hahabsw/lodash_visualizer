@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { JsonView, allExpanded, collapseAllNested, darkStyles } from "react-json-view-lite";
 import EditableJsonEditor from "./EditableJsonEditor";
 import { capitalize } from "./utils";
@@ -9,17 +10,27 @@ const viewerStyles = {
   container: `${darkStyles.container} json-tree-view`
 };
 
-export default function JsonWorkbench({ datasetName, datasetNames, editorContent, jsonStatus, onDatasetChange, onEditorChange, result, resultTextLength }) {
+export default function JsonWorkbench({ datasetName, datasetNames, editorContent, jsonStatus, onDatasetChange, onEditorChange, onFormatJson, result, resultTextLength }) {
+  const [previewExpanded, setPreviewExpanded] = useState(false);
+  const [resultExpanded, setResultExpanded] = useState(true);
   const isValid = jsonStatus === "valid";
   const inputPreviewData = editorContent.json;
+  const canFormat = editorContent.json !== undefined;
 
   return (
     <section className="editor-grid">
       <div className="editor-panel">
         <div className="panel-heading panel-heading-stack">
-          <div>
-            <span>Sample JSON</span>
-            <strong style={{ color: isValid ? undefined : "#b53224" }}>{jsonStatus}</strong>
+          <div className="panel-heading-row">
+            <div>
+              <span>Sample JSON</span>
+              <strong style={{ color: isValid ? undefined : "#b53224" }}>{jsonStatus}</strong>
+            </div>
+            <div className="json-view-controls">
+              <button className="json-view-button" type="button" onClick={onFormatJson} disabled={!canFormat}>
+                Format JSON
+              </button>
+            </div>
           </div>
           <div className="json-sample-switcher" role="tablist" aria-label="Dataset sample">
             {datasetNames.map((name) => (
@@ -38,11 +49,21 @@ export default function JsonWorkbench({ datasetName, datasetNames, editorContent
           <div className="json-preview-card">
             <div className="json-preview-head">
               <span>Parsed preview</span>
-              <strong>{isValid ? "collapsible tree" : "waiting for valid JSON"}</strong>
+              <div className="json-preview-actions">
+                <strong>{isValid ? "collapsible tree" : "waiting for valid JSON"}</strong>
+                <div className="json-view-controls">
+                  <button className="json-view-button" type="button" onClick={() => setPreviewExpanded(true)} disabled={!isValid || previewExpanded}>
+                    Expand all
+                  </button>
+                  <button className="json-view-button" type="button" onClick={() => setPreviewExpanded(false)} disabled={!isValid || !previewExpanded}>
+                    Collapse all
+                  </button>
+                </div>
+              </div>
             </div>
             {isValid ? (
               <div className="json-view-shell is-preview">
-                <JsonView data={inputPreviewData} shouldExpandNode={collapseAllNested} style={viewerStyles} clickToExpandNode />
+                <JsonView data={inputPreviewData} shouldExpandNode={previewExpanded ? allExpanded : collapseAllNested} style={viewerStyles} clickToExpandNode />
               </div>
             ) : (
               <div className="json-preview-empty">Edit the JSON in the code editor above. The visualizer updates when the document is valid JSON and the root value is an array.</div>
@@ -53,14 +74,26 @@ export default function JsonWorkbench({ datasetName, datasetNames, editorContent
 
       <div className="inspector-panel">
         <div className="panel-heading panel-heading-stack">
-          <div>
-            <span>Result JSON</span>
-            <strong>{resultTextLength} chars</strong>
+          <div className="panel-heading-row">
+            <div>
+              <span>Result JSON</span>
+              <strong>{resultTextLength} chars</strong>
+            </div>
+            <div className="json-preview-actions">
+              <div className="json-view-hint">click a node to expand or collapse</div>
+              <div className="json-view-controls">
+                <button className="json-view-button" type="button" onClick={() => setResultExpanded(true)} disabled={resultExpanded}>
+                  Expand all
+                </button>
+                <button className="json-view-button" type="button" onClick={() => setResultExpanded(false)} disabled={!resultExpanded}>
+                  Collapse all
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="json-view-hint">click a node to expand or collapse</div>
         </div>
         <div className="json-view-shell is-result">
-          <JsonView data={result} shouldExpandNode={collapseAllNested} style={viewerStyles} clickToExpandNode />
+          <JsonView data={result} shouldExpandNode={resultExpanded ? allExpanded : collapseAllNested} style={viewerStyles} clickToExpandNode />
         </div>
       </div>
     </section>

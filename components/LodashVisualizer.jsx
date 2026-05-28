@@ -73,6 +73,16 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
     }
   }
 
+  function formatEditorJson() {
+    const parsed = editorContent.json;
+
+    if (parsed === undefined) {
+      return;
+    }
+
+    updateEditor({ json: parsed, text: JSON.stringify(parsed, null, 2) }, editorContent, { contentErrors: undefined, patchResult: undefined });
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar" aria-label="Lodash functions">
@@ -180,6 +190,7 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
           jsonStatus={jsonStatus}
           onDatasetChange={selectDataset}
           onEditorChange={updateEditor}
+          onFormatJson={formatEditorJson}
           result={result}
           resultTextLength={resultText.length}
         />

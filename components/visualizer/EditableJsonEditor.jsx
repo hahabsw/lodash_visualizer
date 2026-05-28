@@ -10,7 +10,7 @@ export default function EditableJsonEditor({ content, onChange }) {
 
     try {
       const parsed = JSON.parse(text);
-      onChange({ json: parsed }, content, { contentErrors: undefined, patchResult: undefined });
+      onChange({ json: parsed, text }, content, { contentErrors: undefined, patchResult: undefined });
     } catch (error) {
       onChange({ text }, content, {
         contentErrors: [{ message: error instanceof Error ? error.message : "Invalid JSON" }],
