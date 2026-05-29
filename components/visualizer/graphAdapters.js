@@ -1,7 +1,7 @@
 import { tones } from "./data";
 import { getItemPropertyReferences } from "./callbacks";
 import { defaultFrames, normalizeDataGraph } from "./dataGraphModel";
-import { formatCount, formatValue, getItemLabel, getItemSubtitle, getObjectEntries, shortLabel, toneForIndex, toneForKey } from "./utils";
+import { formatCount, formatValue, getItemLabel, getItemSubtitle, getObjectEntries, normalizeGroupValue, shortLabel, toneForIndex, toneForKey } from "./utils";
 
 export function createGroupByGraph({ trace, entries, callbackExpression, groupKeys }) {
   const inputNodes = trace.map((step, index) => ({
@@ -185,6 +185,10 @@ export function createMapGraph({ step, index, callbackExpression }) {
 }
 
 export function createOperationGraph({ fnId, input, result, datasetName, callbackContext }) {
+  if (fnId === "reduce") return createReduceGraph({ input, result, callbackContext });
+  if (fnId === "find") return createFindGraph({ input, result, callbackContext });
+  if (fnId === "sortBy") return createSortByGraph({ input, result, callbackContext });
+  if (fnId === "countBy") return createCountByGraph({ input, result, callbackContext });
   if (fnId === "filter") return createFilterGraph({ input, callbackContext });
   if (fnId === "orderBy") return createOrderByGraph({ input, result, callbackContext });
   if (fnId === "partition") return createPartitionGraph({ input, callbackContext });
@@ -193,7 +197,212 @@ export function createOperationGraph({ fnId, input, result, datasetName, callbac
   if (fnId === "sumBy") return createSumByGraph({ input, result, callbackContext });
   if (fnId === "keyBy") return createKeyByGraph({ input, result, callbackContext });
   if (fnId === "flatMap") return createFlatMapGraph({ input, result, callbackContext });
+  if (fnId === "some" || fnId === "every") return createQuantifierGraph({ fnId, input, result, callbackContext });
   return createPassThroughGraph({ fnId, input, result });
+}
+
+function createReduceGraph({ input, result, callbackContext }) {
+  const inputNodes = input.map((item, index) => ({
+    ...itemNode(item, index),
+    fields: objectFields(item, { selectedKeys: getItemPropertyReferences(callbackContext.resolvedExpression) })
+  }));
+  let accumulator = 0;
+  const accumulatorNodes = input.map((item, index) => {
+    const previous = accumulator;
+    accumulator = callbackContext.run(item, index, input, accumulator);
+    return {
+      id: `acc-${index}`,
+      kind: "operator",
+      tone: toneForIndex(index),
+      eyebrow: "accumulator",
+      label: `step ${index + 1}`,
+      value: `${formatValue(previous)} -> ${formatValue(accumulator)}`,
+      meta: { previous, next: accumulator, item }
+    };
+  });
+  const outputNode = { id: "result", kind: "value", tone: "tone-green", eyebrow: "output value", label: formatValue(result), value: "final accumulator", meta: { result } };
+
+  return columnGraph({
+    id: `reduce-${safeGraphId(callbackContext.resolvedExpression)}`,
+    title: "fold each item into one accumulated result",
+    columns: [
+      ["input", "Input array", inputNodes],
+      ["acc", "Accumulator", accumulatorNodes],
+      ["output", "Output", [outputNode]]
+    ],
+    edges: [
+      ...input.map((_, index) => edge(`fold-${index}`, `input-${index}`, `acc-${index}`, toneForIndex(index), "fold", index)),
+      ...input.slice(1).map((_, index) => edge(`carry-${index}`, `acc-${index}`, `acc-${index + 1}`, toneForIndex(index + 1), "carry", index + input.length)),
+      ...(input.length ? [edge("return-result", `acc-${input.length - 1}`, "result", "tone-green", "return", input.length * 2)] : [])
+    ]
+  });
+}
+
+function createFindGraph({ input, result, callbackContext }) {
+  const checks = input.map((item, index) => Boolean(callbackContext.run(item, index, input)));
+  const matchIndex = checks.findIndex(Boolean);
+  const visitedLimit = matchIndex === -1 ? input.length - 1 : matchIndex;
+  const expressionLabel = shortLabel(callbackContext.resolvedExpression, 28);
+  const inputNodes = input.map((item, index) => itemNode(item, index));
+  const predicateNodes = input.map((item, index) => {
+    const wasVisited = index <= visitedLimit;
+    const isMatch = index === matchIndex;
+    return {
+      id: `predicate-${index}`,
+      kind: "operator",
+      tone: isMatch ? "tone-green" : wasVisited ? "tone-coral" : "tone-gold",
+      eyebrow: wasVisited ? "predicate" : "not visited",
+      label: expressionLabel,
+      value: isMatch ? "first match" : wasVisited ? "skip" : "stopped"
+    };
+  });
+  const outputNode = {
+    id: "found",
+    kind: result === undefined ? "value" : "object",
+    tone: matchIndex === -1 ? "tone-coral" : "tone-green",
+    eyebrow: "output",
+    label: result === undefined ? "undefined" : getItemLabel(result, matchIndex),
+    value: matchIndex === -1 ? "no match" : `input[${matchIndex}]`,
+    fields: result && typeof result === "object" && !Array.isArray(result) ? objectFields(result, { valueOnly: true }) : undefined,
+    meta: { result, matchIndex }
+  };
+
+  return columnGraph({
+    id: `find-${safeGraphId(callbackContext.resolvedExpression)}`,
+    title: "scan until the first matching item is found",
+    columns: [
+      ["input", "Input array", inputNodes],
+      ["predicate", "Predicate scan", predicateNodes],
+      ["output", "First match", [outputNode]]
+    ],
+    edges: [
+      ...input.map((_, index) => edge(`test-${index}`, `input-${index}`, `predicate-${index}`, predicateNodes[index].tone, index <= visitedLimit ? "test" : "stopped", index)),
+      ...(matchIndex === -1
+        ? input.length
+          ? [edge("not-found", `predicate-${input.length - 1}`, "found", "tone-coral", "return", input.length)]
+          : []
+        : [edge("found", `predicate-${matchIndex}`, "found", "tone-green", "return", input.length)])
+    ]
+  });
+}
+
+function createSortByGraph({ input, result, callbackContext }) {
+  const expressionLabel = shortLabel(callbackContext.resolvedExpression, 28);
+  const keyValues = input.map((item, index) => callbackContext.run(item, index, input));
+  const inputNodes = input.map((item, index) => itemNode(item, index));
+  const keyNodes = input.map((item, index) => ({
+    id: `key-${index}`,
+    kind: "key",
+    tone: toneForIndex(index),
+    eyebrow: getItemLabel(item, index),
+    label: formatValue(keyValues[index]),
+    value: expressionLabel
+  }));
+  const outputNodes = result.map((item, index) => ({
+    id: `rank-${index}`,
+    kind: "object",
+    tone: toneForIndex(index),
+    eyebrow: `output[${index}]`,
+    label: getItemLabel(item, index),
+    value: `ascending rank ${index + 1}`
+  }));
+
+  return columnGraph({
+    id: `sortBy-${safeGraphId(callbackContext.resolvedExpression)}`,
+    title: "sort by callback result ascending",
+    columns: [
+      ["input", "Input array", inputNodes],
+      ["key", "Sort key", keyNodes],
+      ["output", "Sorted output", outputNodes]
+    ],
+    edges: [
+      ...input.map((_, index) => edge(`read-${index}`, `input-${index}`, `key-${index}`, toneForIndex(index), "read key", index)),
+      ...input.map((item, index) => {
+        const rank = Math.max(0, result.indexOf(item));
+        return edge(`place-${index}`, `key-${index}`, `rank-${rank}`, toneForIndex(index), `rank ${rank + 1}`, index + input.length);
+      })
+    ]
+  });
+}
+
+function createCountByGraph({ input, result, callbackContext }) {
+  const expressionLabel = shortLabel(callbackContext.resolvedExpression, 28);
+  const keyValues = input.map((item, index) => normalizeGroupValue(callbackContext.run(item, index, input)));
+  const inputNodes = input.map((item, index) => itemNode(item, index));
+  const keyNodes = input.map((item, index) => ({
+    id: `key-${index}`,
+    kind: "key",
+    tone: toneForIndex(index),
+    eyebrow: getItemLabel(item, index),
+    label: keyValues[index],
+    value: expressionLabel
+  }));
+  const outputNodes = Object.entries(result).map(([key, count], index) => ({
+    id: `count-${safeGraphId(key)}`,
+    kind: "bucket",
+    tone: toneForIndex(index),
+    eyebrow: "output count",
+    label: key,
+    value: formatCount(count, "item"),
+    meta: { key, count }
+  }));
+
+  return columnGraph({
+    id: `countBy-${safeGraphId(callbackContext.resolvedExpression)}`,
+    title: "callback keys increment output counts",
+    columns: [
+      ["input", "Input array", inputNodes],
+      ["key", "Count key", keyNodes],
+      ["output", "Output counts", outputNodes]
+    ],
+    edges: [
+      ...input.map((_, index) => edge(`read-${index}`, `input-${index}`, `key-${index}`, toneForIndex(index), "read key", index)),
+      ...input.map((_, index) => edge(`count-${index}`, `key-${index}`, `count-${safeGraphId(keyValues[index])}`, toneForIndex(index), "increment", index + input.length))
+    ]
+  });
+}
+
+function createQuantifierGraph({ fnId, input, result, callbackContext }) {
+  const checks = input.map((item, index) => Boolean(callbackContext.run(item, index, input)));
+  const stopIndex = fnId === "some" ? checks.findIndex(Boolean) : checks.findIndex((value) => !value);
+  const visitedLimit = stopIndex === -1 ? input.length - 1 : stopIndex;
+  const expressionLabel = shortLabel(callbackContext.resolvedExpression, 28);
+  const inputNodes = input.map((item, index) => itemNode(item, index));
+  const predicateNodes = input.map((item, index) => {
+    const wasVisited = index <= visitedLimit;
+    const passed = checks[index];
+    return {
+      id: `predicate-${index}`,
+      kind: "operator",
+      tone: !wasVisited ? "tone-gold" : passed ? "tone-green" : "tone-coral",
+      eyebrow: wasVisited ? "predicate" : "not visited",
+      label: expressionLabel,
+      value: !wasVisited ? "short-circuited" : passed ? "true" : "false"
+    };
+  });
+  const outputNode = {
+    id: "result",
+    kind: "value",
+    tone: result ? "tone-green" : "tone-coral",
+    eyebrow: "output boolean",
+    label: String(result),
+    value: fnId === "some" ? "any item matched" : "all visited items matched",
+    meta: { result, checks }
+  };
+
+  return columnGraph({
+    id: `${fnId}-${safeGraphId(callbackContext.resolvedExpression)}`,
+    title: fnId === "some" ? "stop when any predicate returns true" : "stop when any predicate returns false",
+    columns: [
+      ["input", "Input array", inputNodes],
+      ["predicate", "Predicate scan", predicateNodes],
+      ["output", "Boolean result", [outputNode]]
+    ],
+    edges: [
+      ...input.map((_, index) => edge(`test-${index}`, `input-${index}`, `predicate-${index}`, predicateNodes[index].tone, index <= visitedLimit ? "test" : "stopped", index)),
+      ...(input.length ? [edge("return-result", `predicate-${Math.max(0, visitedLimit)}`, "result", outputNode.tone, "return", input.length)] : [])
+    ]
+  });
 }
 
 function createFilterGraph({ input, callbackContext }) {
@@ -603,14 +812,14 @@ function edgeKind(label) {
   if (["keep", "drop", "true", "false", "append", "assign"].includes(label)) return "route";
   if (["read key", "test", "index", "read id"].includes(label)) return "read";
   if (["rank 1", "rank 2", "rank 3", "rank 4", "rank 5", "rank 6"].includes(label)) return "reorder";
-  if (["add", "contribute"].includes(label)) return "accumulate";
+  if (["add", "contribute", "fold", "carry", "return", "increment"].includes(label)) return "accumulate";
   if (["emit", "flatten"].includes(label)) return "emit";
   return label || "flow";
 }
 
 function phaseForEdgeKind(kind, label) {
   if (kind === "read") return 1;
-  if (kind === "accumulate" && label === "add") return 2;
+  if (kind === "accumulate" && ["add", "fold", "carry", "increment"].includes(label)) return 2;
   if (kind === "emit" && label === "emit") return 2;
   return 3;
 }

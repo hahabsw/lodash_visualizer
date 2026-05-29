@@ -26,13 +26,21 @@ export function DataCard({ item, index, muted, highlightKey = null }) {
   );
 }
 
-export function ResultView({ result }) {
+export function ResultView({ result, fnId }) {
   if (Array.isArray(result)) {
     return result.map((item, index) => {
       if (Array.isArray(item)) return <GroupCard groupKey={`batch ${index + 1}`} value={item} index={index} key={`batch-${index}`} />;
       if (_.isPlainObject(item)) return <DataCard item={item} index={index} muted={false} key={getItemLabel(item, index)} />;
       return <PrimitiveCard value={item} index={index} key={`${item}-${index}`} />;
     });
+  }
+
+  if (fnId === "find" && _.isPlainObject(result)) {
+    return <DataCard item={result} index={0} muted={false} />;
+  }
+
+  if (fnId === "countBy" && _.isPlainObject(result)) {
+    return Object.entries(result).map(([key, value], index) => <CountCard countKey={key} value={value} index={index} key={key} />);
   }
 
   if (_.isPlainObject(result)) {
@@ -90,17 +98,35 @@ function PrimitiveCard({ value, index }) {
   );
 }
 
-function ScalarCard({ value }) {
+function CountCard({ countKey, value, index }) {
   return (
-    <article className="group-card tone-green" style={{ "--delay": "0ms" }}>
+    <article className={`group-card ${tones[index % tones.length]}`} style={{ "--delay": `${index * 72}ms` }}>
       <div className="group-head">
-        <span>total</span>
-        <small>number</small>
+        <span>{countKey}</span>
+        <small>{formatCount(value, "item")}</small>
       </div>
       <div className="group-body">
         <div className="mini-card">
           <strong>{formatValue(value)}</strong>
-          <span>sum</span>
+          <span>count</span>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function ScalarCard({ value }) {
+  const isNumber = typeof value === "number";
+  return (
+    <article className="group-card tone-green" style={{ "--delay": "0ms" }}>
+      <div className="group-head">
+        <span>{isNumber ? "total" : "result"}</span>
+        <small>{typeof value}</small>
+      </div>
+      <div className="group-body">
+        <div className="mini-card">
+          <strong>{formatValue(value)}</strong>
+          <span>{isNumber ? "sum" : "value"}</span>
         </div>
       </div>
     </article>

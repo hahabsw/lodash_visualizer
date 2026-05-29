@@ -9,6 +9,18 @@ const callbackEditorConfigs = {
     description: "Return the mapped value or object for each item.",
     defaultExpression: () => "({ label: item.customer ?? item.name ?? item.page, value: item.total ?? item.score ?? item.value, source: item.id })"
   },
+  reduce: {
+    label: "Reduce callback",
+    description: "Return the next accumulator value for each item.",
+    note: "Use acc, item, index, array.",
+    usesAccumulator: true,
+    initialAccumulator: 0,
+    defaultExpression: (datasetName) => {
+      if (datasetName === "people") return "acc + (Number(item.score) || 0)";
+      if (datasetName === "events") return "acc + (Number(item.value) || 0)";
+      return "acc + (Number(item.total) || 0)";
+    }
+  },
   filter: {
     label: "Predicate callback",
     description: "Return true to keep an item in the output array.",
@@ -16,6 +28,24 @@ const callbackEditorConfigs = {
       if (datasetName === "orders") return "item.total >= 100";
       if (datasetName === "people") return "item.active === true";
       return 'item.device === "mobile"';
+    }
+  },
+  find: {
+    label: "Find callback",
+    description: "Return true for the first item to return.",
+    defaultExpression: (datasetName) => {
+      if (datasetName === "orders") return "item.total >= 100";
+      if (datasetName === "people") return "item.score >= 90";
+      return 'item.device === "mobile"';
+    }
+  },
+  sortBy: {
+    label: "Sort callback",
+    description: "Return the ascending sort key for each item.",
+    defaultExpression: (datasetName) => {
+      if (datasetName === "events") return "item.minute";
+      if (datasetName === "people") return "item.score";
+      return "item.total";
     }
   },
   orderBy: {
@@ -26,6 +56,11 @@ const callbackEditorConfigs = {
       if (datasetName === "people") return "item.score";
       return "item.total";
     }
+  },
+  countBy: {
+    label: "Count callback",
+    description: "Return the key whose count should be incremented.",
+    defaultExpression: (_datasetName, groupKey) => `item.${groupKey || "id"}`
   },
   partition: {
     label: "Partition callback",
@@ -67,6 +102,24 @@ const callbackEditorConfigs = {
       if (datasetName === "people") return "item.skills";
       return "[item.page, item.kind]";
     }
+  },
+  some: {
+    label: "Some callback",
+    description: "Return true when at least one item matches.",
+    defaultExpression: (datasetName) => {
+      if (datasetName === "orders") return "item.total >= 200";
+      if (datasetName === "people") return "item.score >= 95";
+      return 'item.kind === "submit"';
+    }
+  },
+  every: {
+    label: "Every callback",
+    description: "Return true only when every item matches.",
+    defaultExpression: (datasetName) => {
+      if (datasetName === "orders") return "item.total >= 40";
+      if (datasetName === "people") return "item.score >= 75";
+      return "item.value >= 1";
+    }
   }
 };
 
@@ -96,8 +149,10 @@ export function getCallbackEditorMeta(fnId, datasetName, groupKey) {
   return {
     label: config.label,
     description: config.description,
-    note: "Use item, index, array.",
-    defaultExpression: config.defaultExpression(datasetName, groupKey)
+    note: config.note || "Use item, index, array.",
+    defaultExpression: config.defaultExpression(datasetName, groupKey),
+    usesAccumulator: Boolean(config.usesAccumulator),
+    initialAccumulator: config.initialAccumulator
   };
 }
 
@@ -116,8 +171,14 @@ export function buildCallbackContext({ fnId, datasetName, groupKey, input, expre
 
   try {
     const candidate = compileExpression(nextExpression);
+    let accumulator = meta.initialAccumulator;
 
     (input || []).forEach((item, index, array) => {
+      if (meta.usesAccumulator) {
+        accumulator = candidate(item, index, array, accumulator);
+        return;
+      }
+
       candidate(item, index, array);
     });
 
@@ -152,5 +213,5 @@ export function getItemPropertyReferences(expression) {
 }
 
 function compileExpression(expression) {
-  return new Function("item", "index", "array", `return (${expression});`);
+  return new Function("item", "index", "array", "acc", `return (${expression});`);
 }

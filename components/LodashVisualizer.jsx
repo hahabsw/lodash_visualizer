@@ -157,12 +157,22 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
   }
 
   function applyCallbackQuickKey(key) {
-    updateCallbackExpression(`item.${key}`);
+    updateCallbackExpression(quickExpressionForKey(activeFn.id, key));
 
     if (activeFn.id === "groupBy") {
       setGroupKeys((prev) => ({ ...prev, [datasetName]: key }));
       setAnimationSeed((seed) => seed + 1);
     }
+  }
+
+  function quickExpressionForKey(fnId, key) {
+    if (fnId === "reduce") return `acc + (Number(item.${key}) || 0)`;
+    return `item.${key}`;
+  }
+
+  function callbackLambdaLabel(fnId, expression) {
+    if (fnId === "reduce") return `(acc, item) => ${expression}`;
+    return `item => ${expression}`;
   }
 
   return (
@@ -233,7 +243,7 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
             {groupKeyChoices.length ? (
               <div className="callback-suggestions" aria-label="Callback quick insert">
                 {groupKeyChoices.map((key) => {
-                  const expression = `item.${key}`;
+                  const expression = quickExpressionForKey(activeFn.id, key);
                   const isActive = activeCallbackContext?.inputExpression?.trim() === expression;
 
                   return (
@@ -247,11 +257,11 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
 
             {activeCallbackContext?.errorMessage ? (
               <div className="callback-error">
-                Invalid callback expression. Using default callback: <code>{`item => ${activeCallbackContext.defaultExpression}`}</code>
+                Invalid callback expression. Using default callback: <code>{callbackLambdaLabel(activeFn.id, activeCallbackContext.defaultExpression)}</code>
               </div>
             ) : (
               <div className="callback-status">
-                Graph and result use: <code>{`item => ${activeCallbackContext?.resolvedExpression}`}</code>
+                Graph and result use: <code>{callbackLambdaLabel(activeFn.id, activeCallbackContext?.resolvedExpression)}</code>
               </div>
             )}
           </section>
@@ -331,7 +341,7 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
               <strong>{summarizeResult(result)}</strong>
             </div>
             <div className="data-stage" key={`output-${animationSeed}-${activeFn.id}`}>
-              <ResultView result={result} />
+              <ResultView result={result} fnId={activeFn.id} />
             </div>
           </div>
         </section>

@@ -1,9 +1,8 @@
 # Lodash Visualizer
 
 Next.js로 만든 lodash 데이터 변환 시각화 앱입니다.
-`_.groupBy`는 입력 데이터 블록이 grouping key를 지나 output bucket으로 수렴하는 과정을 SVG block diagram으로 보여줍니다.
-`_.map`은 입력 블록이 변환 블록을 통과해 새 output 블록으로 바뀌는 과정을 단계별로 보여줍니다.
-각 lodash 함수는 `/groupBy`, `/map`, `/filter`처럼 별도 route로 열립니다.
+`_.groupBy`, `_.map`, `_.filter`, `_.reduce`, `_.find`, `_.sortBy`, `_.countBy` 등 자주 쓰는 lodash 함수를 입력, 콜백, 출력 흐름으로 보여줍니다.
+각 lodash 함수는 `/groupBy`, `/map`, `/reduce`처럼 별도 route로 열립니다.
 
 ## 실행
 
