@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 :root {
   color-scheme: light;
   --ink: #18202f;
@@ -44,40 +46,6 @@ button {
   cursor: pointer;
 }
 
-.app-shell {
-  display: grid;
-  grid-template-columns: minmax(250px, 300px) minmax(0, 1fr);
-  min-height: 100vh;
-}
-
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
-  padding: 24px;
-  background: #f9fbfd;
-  border-right: 1px solid var(--line);
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 13px;
-}
-
-.brand-mark {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 8px;
-  background: var(--ink);
-  color: #fff;
-  font-size: 28px;
-  font-weight: 800;
-  line-height: 1;
-}
-
 .brand h1,
 .topbar h2 {
   margin: 0;
@@ -95,19 +63,6 @@ button {
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
-}
-
-.mode-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-  padding: 4px;
-  background: #e9eef6;
-  border-radius: 8px;
-}
-
-.mode-row-dual {
-  grid-template-columns: repeat(2, 1fr);
 }
 
 .mode-button,
@@ -130,11 +85,6 @@ button {
   background: #fff;
   color: var(--ink);
   box-shadow: 0 5px 14px rgba(24, 32, 47, 0.08);
-}
-
-.visualization-tabs {
-  align-self: start;
-  width: min(460px, 100%);
 }
 
 .function-list {
@@ -181,34 +131,13 @@ button {
   color: #bcd5e4;
 }
 
-.workbench {
-  display: grid;
-  grid-template-rows: auto auto auto auto minmax(410px, 1fr) minmax(220px, 0.48fr);
-  gap: 18px;
-  min-width: 0;
-  padding: 24px;
-}
-
 [hidden] {
   display: none !important;
-}
-
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
 }
 
 .topbar h2 {
   font-size: clamp(28px, 5vw, 54px);
   line-height: 1;
-}
-
-.control-strip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .icon-button {
@@ -241,27 +170,6 @@ button {
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: var(--shadow);
-}
-
-.spotlight {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.78fr);
-  gap: 18px;
-  align-items: stretch;
-  padding: 16px;
-}
-
-.callback-editor {
-  display: grid;
-  gap: 12px;
-  padding: 16px;
-}
-
-.callback-editor-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
 }
 
 .callback-editor-head span {
@@ -390,28 +298,6 @@ button {
   white-space: pre-wrap;
 }
 
-.groupby-lab {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 12px;
-  min-width: 0;
-  min-height: 0;
-}
-
-.lab-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-  min-width: 0;
-}
-
-.lab-title-block {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
 .lab-heading span,
 .trace-panel-heading span {
   color: var(--muted);
@@ -426,42 +312,6 @@ button {
   color: var(--ink);
   font-size: clamp(16px, 1.7vw, 22px);
   line-height: 1.12;
-}
-
-.lab-title-block code,
-.lab-title-block small {
-  overflow: hidden;
-  max-width: min(720px, 58vw);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lab-title-block code {
-  color: var(--teal);
-  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
-  font-size: 13px;
-  font-weight: 850;
-}
-
-.lab-title-block small {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.key-selector,
-.focus-selector {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 7px;
-  max-width: 520px;
-  max-height: 76px;
-  overflow: auto;
-}
-
-.focus-selector {
-  max-width: 640px;
 }
 
 .key-button {
@@ -1562,13 +1412,6 @@ button {
   white-space: nowrap;
 }
 
-.visual-grid {
-  display: grid;
-  grid-template-columns: minmax(260px, 1fr) minmax(110px, 0.23fr) minmax(260px, 1fr);
-  gap: 14px;
-  min-height: 0;
-}
-
 .panel,
 .editor-panel,
 .inspector-panel {
@@ -1763,15 +1606,6 @@ button {
   animation: travel 1.35s ease-in-out infinite;
 }
 
-.editor-grid {
-  display: grid;
-  grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr);
-  gap: 14px;
-  height: 900px;
-  min-height: 0;
-  overflow: hidden;
-}
-
 .panel-heading-stack {
   display: grid;
   gap: 10px;
@@ -1817,26 +1651,6 @@ button {
   border-color: rgba(19, 143, 143, 0.42);
   background: var(--teal-soft);
   color: #075d61;
-}
-
-.json-editor-stack {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
-  min-height: 0;
-}
-
-.json-editor-live {
-  min-height: 0;
-  border-bottom: 1px solid var(--line);
-  background: #101823;
-}
-
-.json-preview-card {
-  display: grid;
-  grid-template-rows: auto 260px;
-  min-height: 0;
-  overflow: hidden;
-  background: #101823;
 }
 
 .json-preview-head {
@@ -1899,18 +1713,6 @@ button {
   line-height: 1.6;
 }
 
-.json-view-shell {
-  overflow: auto;
-  min-height: 0;
-  padding: 12px 14px 16px;
-  background: #101823;
-}
-
-.json-view-shell.is-result {
-  height: 100%;
-  min-height: 0;
-}
-
 .json-editor-host {
   height: 100%;
 }
@@ -1918,11 +1720,6 @@ button {
 .json-editor-host .monaco-editor,
 .json-editor-host .monaco-editor .overflow-guard {
   height: 100%;
-}
-
-.json-view-shell.is-preview {
-  height: 260px;
-  min-height: 0;
 }
 
 .json-tree-view {
@@ -2065,29 +1862,6 @@ pre {
 }
 
 @media (max-width: 1040px) {
-  .app-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .sidebar {
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-  }
-
-  .function-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    max-height: 176px;
-  }
-
-  .workbench {
-    grid-template-rows: auto auto auto auto auto auto;
-  }
-
-  .spotlight,
-  .editor-grid,
   .trace-grid,
   .block-flow {
     grid-template-columns: 1fr;
@@ -2101,21 +1875,6 @@ pre {
     transform: translateX(50%) rotate(135deg);
   }
 
-  .lab-heading {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .key-selector {
-    justify-content: flex-start;
-    max-width: none;
-  }
-
-  .focus-selector {
-    justify-content: flex-start;
-    max-width: none;
-  }
-
   .data-graph-workspace {
     grid-template-columns: 1fr;
   }
@@ -2127,20 +1886,6 @@ pre {
 }
 
 @media (max-width: 760px) {
-  .sidebar,
-  .workbench {
-    padding: 16px;
-  }
-
-  .topbar {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .visual-grid {
-    grid-template-columns: 1fr;
-  }
-
   .trace-step {
     grid-template-columns: 34px minmax(0, 1fr);
   }

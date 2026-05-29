@@ -15,6 +15,28 @@ import MapLab from "./visualizer/MapLab";
 import OperationGraphLab from "./visualizer/OperationGraphLab";
 import { formatCount, getGroupKeyChoices, getItemLabel, summarizeResult } from "./visualizer/utils";
 
+const shellClass = "app-shell grid min-h-screen grid-cols-[minmax(250px,300px)_minmax(0,1fr)] max-[1040px]:grid-cols-1";
+const sidebarClass =
+  "sidebar flex flex-col gap-[22px] border-r border-[var(--line)] bg-[#f9fbfd] p-6 max-[1040px]:sticky max-[1040px]:top-0 max-[1040px]:z-[5] max-[1040px]:border-r-0 max-[1040px]:border-b max-[760px]:p-4";
+const brandClass = "brand flex items-center gap-[13px]";
+const brandMarkClass = "brand-mark grid size-11 place-items-center rounded-lg bg-[var(--ink)] text-[28px] font-extrabold leading-none text-white";
+const functionListClass = "function-list grid gap-2 overflow-auto pr-[3px] max-[1040px]:max-h-44 max-[1040px]:grid-cols-2";
+const workbenchClass =
+  "workbench grid min-w-0 grid-rows-[auto_auto_auto_auto_minmax(410px,1fr)_minmax(220px,0.48fr)] gap-[18px] p-6 max-[1040px]:grid-rows-[auto_auto_auto_auto_auto_auto] max-[760px]:p-4";
+const topbarClass = "topbar flex items-center justify-between gap-4 max-[760px]:flex-col max-[760px]:items-start";
+const controlStripClass = "control-strip flex items-center gap-2";
+const panelShellClass = "rounded-lg border border-[var(--line)] bg-white/85 shadow-[var(--shadow)]";
+const spotlightClass = `${panelShellClass} spotlight grid grid-cols-[minmax(0,1fr)_minmax(280px,0.78fr)] items-stretch gap-[18px] p-4 max-[1040px]:grid-cols-1`;
+const callbackEditorClass = `${panelShellClass} callback-editor grid gap-3 p-4`;
+const callbackHeadClass = "callback-editor-head flex items-start justify-between gap-3.5";
+const compactButtonClass = "text-button is-compact min-h-[34px] px-3";
+const visualTabsClass = "visualization-tabs grid w-full max-w-[460px] grid-cols-2 gap-1.5 self-start rounded-lg bg-[#e9eef6] p-1";
+const visualGridClass = "visual-grid grid min-h-0 grid-cols-[minmax(260px,1fr)_minmax(110px,0.23fr)_minmax(260px,1fr)] gap-3.5 max-[760px]:grid-cols-1";
+
+function tabButtonClass(isActive) {
+  return `mode-button min-h-[35px] rounded-md text-[13px] font-bold ${isActive ? "is-active bg-white text-[var(--ink)] shadow-[0_5px_14px_rgba(24,32,47,0.08)]" : "bg-transparent text-[var(--muted)]"}`;
+}
+
 export default function LodashVisualizer({ activeFnId = defaultFunctionId, initialDatasetName = defaultDatasetName, initialVisualizationView = "graph" }) {
   const normalizedDatasetName = datasets[initialDatasetName] ? initialDatasetName : defaultDatasetName;
   const normalizedVisualizationView = initialVisualizationView === "io" ? "io" : "graph";
@@ -144,16 +166,16 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
   }
 
   return (
-    <main className="app-shell">
-      <aside className="sidebar" aria-label="Lodash functions">
-        <div className="brand">
-          <span className="brand-mark">_</span>
+    <main className={shellClass}>
+      <aside className={sidebarClass} aria-label="Lodash functions">
+        <div className={brandClass}>
+          <span className={brandMarkClass}>_</span>
           <div>
             <h1>Lodash Visualizer</h1>
             <p>data in motion</p>
           </div>
         </div>
-        <nav className="function-list" aria-label="Function list">
+        <nav className={functionListClass} aria-label="Function list">
           {functions.map((fn) => (
             <Link className={`function-button ${fn.id === activeFn.id ? "is-active" : ""}`} href={buildHref(fn.id)} key={fn.id}>
               <span>{fn.name}</span>
@@ -163,13 +185,13 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
         </nav>
       </aside>
 
-      <section className="workbench">
-        <header className="topbar">
+      <section className={workbenchClass}>
+        <header className={topbarClass}>
           <div>
             <p className="eyebrow">{activeFn.category}</p>
             <h2>{activeFn.name}</h2>
           </div>
-          <div className="control-strip">
+          <div className={controlStripClass}>
             <button className="icon-button" type="button" aria-label="Replay animation" title="Replay" onClick={() => setAnimationSeed((seed) => seed + 1)}>
               <span aria-hidden="true">&#8635;</span>
             </button>
@@ -179,7 +201,7 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
           </div>
         </header>
 
-        <section className="spotlight">
+        <section className={spotlightClass}>
           <div className="signature-line">
             <code>{activeFn.signature(datasetName, activeCallbackContext)}</code>
             <span>{summarizeResult(result)}</span>
@@ -188,15 +210,15 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
         </section>
 
         {activeCallbackMeta ? (
-          <section className="callback-editor">
-            <div className="callback-editor-head">
+          <section className={callbackEditorClass}>
+            <div className={callbackHeadClass}>
               <div>
                 <span>{activeCallbackMeta.label}</span>
                 <strong style={{ color: activeCallbackContext?.errorMessage ? "#a43b2e" : undefined }}>
                   {activeCallbackContext?.usesFallback ? "using default callback" : "live callback"}
                 </strong>
               </div>
-              <button className="text-button is-compact" type="button" onClick={resetCallbackExpression}>
+              <button className={compactButtonClass} type="button" onClick={resetCallbackExpression}>
                 Reset callback
               </button>
             </div>
@@ -235,9 +257,9 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
           </section>
         ) : null}
 
-        <div className="mode-row mode-row-dual visualization-tabs" role="tablist" aria-label="Visualization mode">
+        <div className={visualTabsClass} role="tablist" aria-label="Visualization mode">
           <button
-            className={`mode-button ${showUnifiedGraph ? "is-active" : ""}`}
+            className={tabButtonClass(showUnifiedGraph)}
             type="button"
             role="tab"
             aria-selected={showUnifiedGraph}
@@ -246,7 +268,7 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
             Data Graph
           </button>
           <button
-            className={`mode-button ${showInputOutput ? "is-active" : ""}`}
+            className={tabButtonClass(showInputOutput)}
             type="button"
             role="tab"
             aria-selected={showInputOutput}
@@ -278,7 +300,7 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
           <OperationGraphLab key={`operation-graph-${animationSeed}-${datasetName}-${activeFn.id}-${input.length}`} fnId={activeFn.id} input={input} result={result} datasetName={datasetName} callbackContext={activeCallbackContext} />
         ) : null}
 
-        <section className="visual-grid" aria-label="Data transformation" hidden={!showInputOutput}>
+        <section className={visualGridClass} aria-label="Data transformation" hidden={!showInputOutput}>
           <div className="panel input-panel">
             <div className="panel-heading">
               <span>Input</span>

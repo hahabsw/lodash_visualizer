@@ -10,6 +10,16 @@ const viewerStyles = {
   container: `${darkStyles.container} json-tree-view`
 };
 
+const editorGridClass = "editor-grid grid h-[900px] min-h-0 grid-cols-[minmax(260px,1fr)_minmax(260px,1fr)] gap-3.5 overflow-hidden max-[1040px]:grid-cols-1";
+const panelClass = "grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-lg border border-[var(--line)] bg-white/85 shadow-[var(--shadow)]";
+const panelHeadingClass = "panel-heading panel-heading-stack grid gap-2.5 border-b border-[var(--line)] px-[15px] py-3 text-xs font-extrabold uppercase text-[var(--muted)]";
+const headingRowClass = "panel-heading-row flex items-center justify-between gap-3";
+const jsonEditorStackClass = "json-editor-stack grid min-h-0 grid-rows-[minmax(0,1fr)_auto]";
+const jsonEditorLiveClass = "json-editor-live min-h-0 border-b border-[var(--line)] bg-[#101823]";
+const jsonPreviewCardClass = "json-preview-card grid min-h-0 grid-rows-[auto_260px] overflow-hidden bg-[#101823]";
+const resultShellClass = "json-view-shell is-result h-full min-h-0 overflow-auto bg-[#101823] px-3.5 pb-4 pt-3";
+const previewShellClass = "json-view-shell is-preview h-[260px] min-h-0 overflow-auto bg-[#101823] px-3.5 pb-4 pt-3";
+
 export default function JsonWorkbench({ datasetName, datasetNames, editorContent, jsonStatus, onDatasetChange, onEditorChange, onFormatJson, result, resultTextLength }) {
   const [previewExpanded, setPreviewExpanded] = useState(false);
   const [resultExpanded, setResultExpanded] = useState(true);
@@ -18,10 +28,10 @@ export default function JsonWorkbench({ datasetName, datasetNames, editorContent
   const canFormat = editorContent.json !== undefined;
 
   return (
-    <section className="editor-grid">
-      <div className="editor-panel">
-        <div className="panel-heading panel-heading-stack">
-          <div className="panel-heading-row">
+    <section className={editorGridClass}>
+      <div className={`${panelClass} editor-panel`}>
+        <div className={panelHeadingClass}>
+          <div className={headingRowClass}>
             <div>
               <span>Sample JSON</span>
               <strong style={{ color: isValid ? undefined : "#b53224" }}>{jsonStatus}</strong>
@@ -41,12 +51,12 @@ export default function JsonWorkbench({ datasetName, datasetNames, editorContent
           </div>
         </div>
 
-        <div className="json-editor-stack">
-          <div className="json-editor-live">
+        <div className={jsonEditorStackClass}>
+          <div className={jsonEditorLiveClass}>
             <EditableJsonEditor content={editorContent} onChange={onEditorChange} />
           </div>
 
-          <div className="json-preview-card">
+          <div className={jsonPreviewCardClass}>
             <div className="json-preview-head">
               <span>Parsed preview</span>
               <div className="json-preview-actions">
@@ -62,7 +72,7 @@ export default function JsonWorkbench({ datasetName, datasetNames, editorContent
               </div>
             </div>
             {isValid ? (
-              <div className="json-view-shell is-preview">
+              <div className={previewShellClass}>
                 <JsonView data={inputPreviewData} shouldExpandNode={previewExpanded ? allExpanded : collapseAllNested} style={viewerStyles} clickToExpandNode />
               </div>
             ) : (
@@ -72,9 +82,9 @@ export default function JsonWorkbench({ datasetName, datasetNames, editorContent
         </div>
       </div>
 
-      <div className="inspector-panel">
-        <div className="panel-heading panel-heading-stack">
-          <div className="panel-heading-row">
+      <div className={`${panelClass} inspector-panel`}>
+        <div className={panelHeadingClass}>
+          <div className={headingRowClass}>
             <div>
               <span>Result JSON</span>
               <strong>{resultTextLength} chars</strong>
@@ -92,7 +102,7 @@ export default function JsonWorkbench({ datasetName, datasetNames, editorContent
             </div>
           </div>
         </div>
-        <div className="json-view-shell is-result">
+        <div className={resultShellClass}>
           <JsonView data={result} shouldExpandNode={resultExpanded ? allExpanded : collapseAllNested} style={viewerStyles} clickToExpandNode />
         </div>
       </div>
