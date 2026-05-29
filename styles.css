@@ -284,6 +284,19 @@ button {
   padding: 0 12px;
 }
 
+.callback-code-editor {
+  overflow: hidden;
+  min-height: 128px;
+  border: 1px solid rgba(232, 242, 255, 0.14);
+  border-radius: 8px;
+  background: #101823;
+}
+
+.callback-code-editor .monaco-editor,
+.callback-code-editor .monaco-editor .overflow-guard {
+  height: 100%;
+}
+
 .callback-expression-input {
   min-height: 96px;
   padding: 14px;
@@ -379,15 +392,23 @@ button {
 
 .groupby-lab {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 12px;
   min-width: 0;
+  min-height: 0;
 }
 
 .lab-heading {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
+  min-width: 0;
+}
+
+.lab-title-block {
+  display: grid;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -403,8 +424,29 @@ button {
   display: block;
   margin-top: 3px;
   color: var(--ink);
-  font-size: clamp(18px, 2.3vw, 28px);
-  line-height: 1.05;
+  font-size: clamp(16px, 1.7vw, 22px);
+  line-height: 1.12;
+}
+
+.lab-title-block code,
+.lab-title-block small {
+  overflow: hidden;
+  max-width: min(720px, 58vw);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lab-title-block code {
+  color: var(--teal);
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.lab-title-block small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .key-selector,
@@ -414,6 +456,8 @@ button {
   justify-content: flex-end;
   gap: 7px;
   max-width: 520px;
+  max-height: 76px;
+  overflow: auto;
 }
 
 .focus-selector {
@@ -485,6 +529,7 @@ button {
 }
 
 .data-graph-card {
+  align-self: start;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1722,7 +1767,9 @@ button {
   display: grid;
   grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr);
   gap: 14px;
-  min-height: 760px;
+  height: 900px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .panel-heading-stack {
@@ -1774,20 +1821,21 @@ button {
 
 .json-editor-stack {
   display: grid;
-  grid-template-rows: minmax(540px, 1fr) minmax(150px, auto);
+  grid-template-rows: minmax(0, 1fr) auto;
   min-height: 0;
 }
 
 .json-editor-live {
-  min-height: 540px;
+  min-height: 0;
   border-bottom: 1px solid var(--line);
   background: #101823;
 }
 
 .json-preview-card {
   display: grid;
-  grid-template-rows: auto auto;
+  grid-template-rows: auto 260px;
   min-height: 0;
+  overflow: hidden;
   background: #101823;
 }
 
@@ -1854,14 +1902,13 @@ button {
 .json-view-shell {
   overflow: auto;
   min-height: 0;
-  min-height: 700px;
   padding: 12px 14px 16px;
   background: #101823;
 }
 
 .json-view-shell.is-result {
   height: 100%;
-  min-height: 700px;
+  min-height: 0;
 }
 
 .json-editor-host {
@@ -1874,7 +1921,8 @@ button {
 }
 
 .json-view-shell.is-preview {
-  min-height: 220px;
+  height: 260px;
+  min-height: 0;
 }
 
 .json-tree-view {

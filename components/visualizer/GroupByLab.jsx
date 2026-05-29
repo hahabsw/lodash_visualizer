@@ -15,11 +15,11 @@ export default function GroupByLab({ input, result, groupKey, groupKeyChoices, o
   return (
     <section className="groupby-lab" aria-label="groupBy detail">
       <div className="lab-heading">
-        <div>
+        <div className="lab-title-block">
           <span>groupBy data flow</span>
-          <strong>
-            item =&gt; {callbackContext.resolvedExpression} -&gt; {values}
-          </strong>
+          <strong>callback routes items into buckets</strong>
+          <code>item =&gt; {callbackContext.resolvedExpression}</code>
+          <small>{values}</small>
         </div>
         <div className="key-selector" aria-label="Grouping key quick select">
           {groupKeyChoices.map((key) => (

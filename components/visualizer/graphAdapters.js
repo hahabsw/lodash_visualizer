@@ -1,4 +1,5 @@
 import { tones } from "./data";
+import { getItemPropertyReferences } from "./callbacks";
 import { defaultFrames, normalizeDataGraph } from "./dataGraphModel";
 import { formatCount, formatValue, getItemLabel, getItemSubtitle, getObjectEntries, shortLabel, toneForIndex, toneForKey } from "./utils";
 
@@ -76,6 +77,10 @@ export function createGroupByGraph({ trace, entries, callbackExpression, groupKe
 export function createMapGraph({ step, index, callbackExpression }) {
   const outputIsObject = step.output && typeof step.output === "object" && !Array.isArray(step.output);
   const outputIsArray = Array.isArray(step.output);
+  const referencedKeys = getItemPropertyReferences(callbackExpression);
+  const presentReferencedKeys = referencedKeys.filter((key) => Object.prototype.hasOwnProperty.call(step.item || {}, key));
+  const outputKeys = outputIsObject ? Object.keys(step.output) : [];
+  const returnKind = outputIsArray ? "array" : outputIsObject ? "object" : "value";
   const inputNode = {
     id: "input-object",
     kind: "object",
@@ -85,7 +90,7 @@ export function createMapGraph({ step, index, callbackExpression }) {
     eyebrow: `input[${index}]`,
     label: step.itemLabel,
     value: "source object",
-    fields: objectFields(step.item),
+    fields: objectFields(step.item, { selectedKeys: presentReferencedKeys }),
     meta: { item: step.item }
   };
 
@@ -95,9 +100,27 @@ export function createMapGraph({ step, index, callbackExpression }) {
     phase: 2,
     path: "callback",
     tone: toneForIndex(index),
-    eyebrow: "callback",
-    label: shortLabel(`item => ${callbackExpression}`, 44),
-    value: outputIsArray ? "returns array" : outputIsObject ? "returns object" : "returns value"
+    eyebrow: "map callback",
+    label: "item => result",
+    value: `reads ${presentReferencedKeys.length ? presentReferencedKeys.map((key) => `item.${key}`).join(", ") : "item"}`,
+    detail: `returns ${returnKind}`,
+    fields: [
+      {
+        key: "reads",
+        value: presentReferencedKeys.length ? presentReferencedKeys.join(", ") : "item",
+        selected: true
+      },
+      {
+        key: "returns",
+        value: outputIsObject ? `{ ${outputKeys.join(", ")} }` : returnKind,
+        selected: true
+      },
+      {
+        key: "expr",
+        value: shortLabel(callbackExpression, 46)
+      }
+    ],
+    meta: { expression: callbackExpression, reads: presentReferencedKeys, returns: step.output }
   };
 
   const outputNode = outputIsObject
@@ -110,7 +133,7 @@ export function createMapGraph({ step, index, callbackExpression }) {
         eyebrow: `output[${index}]`,
         label: getItemLabel(step.output, index),
         value: "mapped object",
-        fields: objectFields(step.output, { valueOnly: true }),
+        fields: objectFields(step.output, { selectedKeys: outputKeys, valueOnly: true }),
         meta: { output: step.output }
       }
     : {
@@ -127,7 +150,7 @@ export function createMapGraph({ step, index, callbackExpression }) {
 
   return normalizeDataGraph({
     id: `map-${step.itemLabel}-${index}`,
-    title: `${step.itemLabel} runs through ${shortLabel(`item => ${callbackExpression}`, 30)}`,
+    title: `${step.itemLabel} reads ${presentReferencedKeys.length ? presentReferencedKeys.map((key) => `item.${key}`).join(", ") : "item"} into callback result`,
     frames: defaultFrames,
     meta: { operation: "map", itemIndex: index, item: step.item, output: step.output },
     columns: [
@@ -143,9 +166,9 @@ export function createMapGraph({ step, index, callbackExpression }) {
         target: callbackNode.id,
         kind: "read",
         tone: toneForIndex(index),
-        label: "run callback",
+        label: presentReferencedKeys.length ? "read selected keys" : "read item",
         phase: 1,
-        meta: { expression: callbackExpression }
+        meta: { expression: callbackExpression, reads: presentReferencedKeys }
       },
       {
         id: "write-map",
@@ -153,7 +176,7 @@ export function createMapGraph({ step, index, callbackExpression }) {
         target: outputNode.id,
         kind: "copy",
         tone: toneForIndex(index),
-        label: "write result",
+        label: outputIsObject ? "write object" : "write value",
         phase: 3,
         meta: { output: step.output }
       }

@@ -146,6 +146,11 @@ export function getSimpleItemPropertyExpression(expression) {
   return match ? match[1] : null;
 }
 
+export function getItemPropertyReferences(expression) {
+  const matches = expression?.matchAll(/\bitem\.([A-Za-z_$][\w$]*)\b/g) || [];
+  return [...new Set([...matches].map((match) => match[1]))];
+}
+
 function compileExpression(expression) {
   return new Function("item", "index", "array", `return (${expression});`);
 }

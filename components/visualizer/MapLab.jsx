@@ -19,9 +19,10 @@ export default function MapLab({ input, result, callbackContext }) {
   return (
     <section className="groupby-lab map-lab" aria-label="map detail">
       <div className="lab-heading">
-        <div>
+        <div className="lab-title-block">
           <span>map data flow</span>
-          <strong>item =&gt; {callbackContext.resolvedExpression}</strong>
+          <strong>focus one item transformation</strong>
+          <code>item =&gt; {callbackContext.resolvedExpression}</code>
         </div>
         <div className="focus-selector" aria-label="Focused input item">
           {trace.map((step, index) => (

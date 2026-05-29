@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import _ from "lodash";
 import { DataCard, ResultView } from "./visualizer/CommonViews";
+import CallbackExpressionEditor from "./visualizer/CallbackExpressionEditor";
 import { buildCallbackContext, buildCallbackExpressionKey, getCallbackEditorMeta, getSimpleItemPropertyExpression } from "./visualizer/callbacks";
 import { datasets, defaultDatasetName, groupKeyDefaults } from "./visualizer/data";
 import { createFunctionConfigs, defaultFunctionId } from "./visualizer/functionConfigs";
@@ -200,13 +201,7 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
               </button>
             </div>
 
-            <textarea
-              className="callback-expression-input"
-              rows={3}
-              spellCheck="false"
-              value={activeCallbackContext?.inputExpression ?? activeCallbackMeta.defaultExpression}
-              onChange={(event) => updateCallbackExpression(event.target.value)}
-            />
+            <CallbackExpressionEditor value={activeCallbackContext?.inputExpression ?? activeCallbackMeta.defaultExpression} onChange={updateCallbackExpression} />
 
             <div className="callback-editor-foot">
               <span>{activeCallbackMeta.description}</span>
