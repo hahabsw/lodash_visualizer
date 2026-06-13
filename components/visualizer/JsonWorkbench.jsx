@@ -14,17 +14,13 @@ const editorGridClass = "editor-grid grid h-[900px] min-h-0 grid-cols-[minmax(26
 const panelClass = "grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-lg border border-[var(--line)] bg-white/85 shadow-[var(--shadow)]";
 const panelHeadingClass = "panel-heading panel-heading-stack grid gap-2.5 border-b border-[var(--line)] px-[15px] py-3 text-xs font-extrabold uppercase text-[var(--muted)]";
 const headingRowClass = "panel-heading-row flex items-center justify-between gap-3";
-const jsonEditorStackClass = "json-editor-stack grid min-h-0 grid-rows-[minmax(0,1fr)_auto]";
-const jsonEditorLiveClass = "json-editor-live min-h-0 border-b border-[var(--line)] bg-[#101823]";
-const jsonPreviewCardClass = "json-preview-card grid min-h-0 grid-rows-[auto_260px] overflow-hidden bg-[#101823]";
+const jsonEditorStackClass = "json-editor-stack min-h-0";
+const jsonEditorLiveClass = "json-editor-live h-full min-h-0 bg-[#101823]";
 const resultShellClass = "json-view-shell is-result h-full min-h-0 overflow-auto bg-[#101823] px-3.5 pb-4 pt-3";
-const previewShellClass = "json-view-shell is-preview h-[260px] min-h-0 overflow-auto bg-[#101823] px-3.5 pb-4 pt-3";
 
 export default function JsonWorkbench({ datasetName, datasetNames, editorContent, jsonStatus, onDatasetChange, onEditorChange, onFormatJson, result, resultTextLength }) {
-  const [previewExpanded, setPreviewExpanded] = useState(false);
   const [resultExpanded, setResultExpanded] = useState(true);
   const isValid = jsonStatus === "valid";
-  const inputPreviewData = editorContent.json;
   const canFormat = editorContent.json !== undefined;
 
   return (
@@ -54,30 +50,6 @@ export default function JsonWorkbench({ datasetName, datasetNames, editorContent
         <div className={jsonEditorStackClass}>
           <div className={jsonEditorLiveClass}>
             <EditableJsonEditor content={editorContent} onChange={onEditorChange} />
-          </div>
-
-          <div className={jsonPreviewCardClass}>
-            <div className="json-preview-head">
-              <span>Parsed preview</span>
-              <div className="json-preview-actions">
-                <strong>{isValid ? "collapsible tree" : "waiting for valid JSON"}</strong>
-                <div className="json-view-controls">
-                  <button className="json-view-button" type="button" onClick={() => setPreviewExpanded(true)} disabled={!isValid || previewExpanded}>
-                    Expand all
-                  </button>
-                  <button className="json-view-button" type="button" onClick={() => setPreviewExpanded(false)} disabled={!isValid || !previewExpanded}>
-                    Collapse all
-                  </button>
-                </div>
-              </div>
-            </div>
-            {isValid ? (
-              <div className={previewShellClass}>
-                <JsonView data={inputPreviewData} shouldExpandNode={previewExpanded ? allExpanded : collapseAllNested} style={viewerStyles} clickToExpandNode />
-              </div>
-            ) : (
-              <div className="json-preview-empty">Edit the JSON in the code editor above. The visualizer updates when the document is valid JSON and the root value is an array.</div>
-            )}
           </div>
         </div>
       </div>
