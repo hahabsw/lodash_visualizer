@@ -198,6 +198,9 @@ export function createOperationGraph({ fnId, input, result, datasetName, callbac
   if (fnId === "keyBy") return createKeyByGraph({ input, result, callbackContext });
   if (fnId === "flatMap") return createFlatMapGraph({ input, result, callbackContext });
   if (fnId === "some" || fnId === "every") return createQuantifierGraph({ fnId, input, result, callbackContext });
+  if (fnId === "maxBy" || fnId === "minBy") return createExtremumByGraph({ fnId, input, result, callbackContext });
+  if (fnId === "meanBy") return createMeanByGraph({ input, result, callbackContext });
+  if (fnId === "take" || fnId === "drop") return createTakeDropGraph({ fnId, input, result });
   return createPassThroughGraph({ fnId, input, result });
 }
 
@@ -638,6 +641,157 @@ function createSumByGraph({ input, result, callbackContext }) {
   });
 }
 
+function createExtremumByGraph({ fnId, input, result, callbackContext }) {
+  const isMax = fnId === "maxBy";
+  const expressionLabel = shortLabel(callbackContext.resolvedExpression, 28);
+  const referencedKeys = getItemPropertyReferences(callbackContext.resolvedExpression);
+  const callbackValues = input.map((item, index) => callbackContext.run(item, index, input));
+  const resultIndex = input.indexOf(result);
+  const resultValue = resultIndex === -1 ? undefined : callbackValues[resultIndex];
+  const inputNodes = input.map((item, index) => ({
+    ...itemNode(item, index),
+    fields: objectFields(item, { selectedKeys: referencedKeys.filter((key) => Object.prototype.hasOwnProperty.call(item || {}, key)) })
+  }));
+  const keyNodes = input.map((item, index) => {
+    const isWinner = index === resultIndex;
+    return {
+      id: `key-${index}`,
+      kind: "key",
+      tone: isWinner ? "tone-green" : toneForIndex(index),
+      eyebrow: getItemLabel(item, index),
+      label: formatValue(callbackValues[index]),
+      value: isWinner ? `selected ${isMax ? "max" : "min"}` : expressionLabel
+    };
+  });
+  const outputNode =
+    result && typeof result === "object" && !Array.isArray(result)
+      ? {
+          id: "selected",
+          kind: "object",
+          tone: "tone-green",
+          eyebrow: "output item",
+          label: getItemLabel(result, resultIndex),
+          value: `${isMax ? "largest" : "smallest"} ${formatValue(resultValue)}`,
+          fields: objectFields(result, { valueOnly: true }),
+          meta: { result, resultIndex, resultValue }
+        }
+      : {
+          id: "selected",
+          kind: "value",
+          tone: "tone-coral",
+          eyebrow: "output item",
+          label: "undefined",
+          value: "no input items",
+          meta: { result, resultIndex, resultValue }
+        };
+
+  return columnGraph({
+    id: `${fnId}-${safeGraphId(callbackContext.resolvedExpression)}`,
+    title: `compare callback values and return the ${isMax ? "largest" : "smallest"} item`,
+    columns: [
+      ["input", "Input array", inputNodes],
+      ["key", "Comparison value", keyNodes],
+      ["output", "Selected item", [outputNode]]
+    ],
+    edges: [
+      ...input.map((_, index) => edge(`read-${index}`, `input-${index}`, `key-${index}`, keyNodes[index].tone, "read key", index)),
+      ...input.map((_, index) => edge(`compare-${index}`, `key-${index}`, "selected", keyNodes[index].tone, index === resultIndex ? "winner" : "compare", index + input.length))
+    ]
+  });
+}
+
+function createMeanByGraph({ input, result, callbackContext }) {
+  const callbackValues = input.map((item, index) => Number(callbackContext.run(item, index, input)) || 0);
+  const expressionLabel = shortLabel(callbackContext.resolvedExpression, 28);
+  const valueNodes = input.map((item, index) => ({
+    id: `value-${index}`,
+    kind: "field",
+    tone: toneForIndex(index),
+    eyebrow: getItemLabel(item, index),
+    label: formatValue(callbackValues[index]),
+    value: expressionLabel
+  }));
+  let running = 0;
+  const accumulatorNodes = input.map((item, index) => {
+    running += callbackValues[index];
+    return {
+      id: `mean-${index}`,
+      kind: "operator",
+      tone: toneForIndex(index),
+      eyebrow: "sum / count",
+      label: `sum ${formatValue(running)}`,
+      value: formatCount(index + 1, "value")
+    };
+  });
+  const total = callbackValues.reduce((sum, value) => sum + value, 0);
+  const meanNode = {
+    id: "mean",
+    kind: "value",
+    tone: "tone-green",
+    eyebrow: "output value",
+    label: "average",
+    value: input.length ? `${formatValue(total)} / ${formatCount(input, "item")} = ${formatValue(result)}` : formatValue(result)
+  };
+
+  return columnGraph({
+    id: `meanBy-${safeGraphId(callbackContext.resolvedExpression)}`,
+    title: "sum callback values and divide by item count",
+    columns: [
+      ["value", "Input values", valueNodes],
+      ["acc", "Running sum", accumulatorNodes],
+      ["output", "Average", [meanNode]]
+    ],
+    edges: [
+      ...input.map((_, index) => edge(`read-${index}`, `value-${index}`, `mean-${index}`, toneForIndex(index), "add", index)),
+      ...input.map((_, index) => edge(`route-${index}`, `mean-${index}`, "mean", toneForIndex(index), "average", index + input.length))
+    ]
+  });
+}
+
+function createTakeDropGraph({ fnId, input, result }) {
+  const size = 3;
+  const isTake = fnId === "take";
+  const inputNodes = input.map((item, index) => itemNode(item, index));
+  const indexNodes = input.map((item, index) => {
+    const kept = isTake ? index < size : index >= size;
+    return {
+      id: `index-${index}`,
+      kind: "operator",
+      tone: kept ? "tone-green" : "tone-coral",
+      eyebrow: "index boundary",
+      label: `index ${index}`,
+      value: kept ? "keep" : "drop"
+    };
+  });
+  const outputIndexes = new Map();
+  result.forEach((item, index) => outputIndexes.set(item, index));
+  const outputNodes = input.map((item, index) => {
+    const kept = isTake ? index < size : index >= size;
+    return {
+      id: `out-${index}`,
+      kind: kept ? "object" : "bucket",
+      tone: kept ? "tone-green" : "tone-coral",
+      eyebrow: kept ? `output[${outputIndexes.get(item) ?? 0}]` : "not included",
+      label: kept ? getItemLabel(item, index) : "dropped",
+      value: kept ? `input[${index}] kept` : `input[${index}] removed`
+    };
+  });
+
+  return columnGraph({
+    id: `${fnId}-${size}`,
+    title: isTake ? `keep the first ${size} items` : `drop the first ${size} items`,
+    columns: [
+      ["input", "Input array", inputNodes],
+      ["index", "Index check", indexNodes],
+      ["output", "Output array", outputNodes]
+    ],
+    edges: [
+      ...input.map((_, index) => edge(`read-${index}`, `input-${index}`, `index-${index}`, indexNodes[index].tone, "index", index)),
+      ...input.map((_, index) => edge(`route-${index}`, `index-${index}`, `out-${index}`, indexNodes[index].tone, indexNodes[index].value, index + input.length))
+    ]
+  });
+}
+
 function createKeyByGraph({ input, result, callbackContext }) {
   const propertyKeys = input.map((item, index) => String(callbackContext.run(item, index, input)));
   const expressionLabel = shortLabel(callbackContext.resolvedExpression, 28);
@@ -809,10 +963,10 @@ function edge(id, source, target, tone, label, phase) {
 }
 
 function edgeKind(label) {
-  if (["keep", "drop", "true", "false", "append", "assign"].includes(label)) return "route";
+  if (["keep", "drop", "true", "false", "append", "assign", "winner"].includes(label)) return "route";
   if (["read key", "test", "index", "read id"].includes(label)) return "read";
   if (["rank 1", "rank 2", "rank 3", "rank 4", "rank 5", "rank 6"].includes(label)) return "reorder";
-  if (["add", "contribute", "fold", "carry", "return", "increment"].includes(label)) return "accumulate";
+  if (["add", "average", "contribute", "fold", "carry", "return", "increment"].includes(label)) return "accumulate";
   if (["emit", "flatten"].includes(label)) return "emit";
   return label || "flow";
 }

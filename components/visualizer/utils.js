@@ -104,6 +104,7 @@ export function getItemSubtitle(item) {
 
 export function summarizeResult(result) {
   if (Array.isArray(result)) return formatCount(result, Array.isArray(result[0]) ? "batch" : "item");
+  if (_.isPlainObject(result) && (result.id || result.name || result.customer || result.page)) return "1 item";
   if (_.isPlainObject(result)) return formatCount(Object.keys(result), "group");
   return "1 value";
 }

@@ -35,7 +35,7 @@ export function ResultView({ result, fnId }) {
     });
   }
 
-  if (fnId === "find" && _.isPlainObject(result)) {
+  if (["find", "maxBy", "minBy"].includes(fnId) && _.isPlainObject(result)) {
     return <DataCard item={result} index={0} muted={false} />;
   }
 

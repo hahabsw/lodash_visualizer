@@ -120,6 +120,33 @@ const callbackEditorConfigs = {
       if (datasetName === "people") return "item.score >= 75";
       return "item.value >= 1";
     }
+  },
+  maxBy: {
+    label: "Max callback",
+    description: "Return the value used to choose the largest item.",
+    defaultExpression: (datasetName) => {
+      if (datasetName === "people") return "item.score";
+      if (datasetName === "events") return "item.value";
+      return "item.total";
+    }
+  },
+  minBy: {
+    label: "Min callback",
+    description: "Return the value used to choose the smallest item.",
+    defaultExpression: (datasetName) => {
+      if (datasetName === "people") return "item.score";
+      if (datasetName === "events") return "item.value";
+      return "item.total";
+    }
+  },
+  meanBy: {
+    label: "Mean callback",
+    description: "Return the number used in the average.",
+    defaultExpression: (datasetName) => {
+      if (datasetName === "people") return "item.score";
+      if (datasetName === "events") return "item.value";
+      return "item.total";
+    }
   }
 };
 

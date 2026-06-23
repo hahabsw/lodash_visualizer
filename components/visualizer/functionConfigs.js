@@ -3,7 +3,29 @@ import { getDefaultCallbackExpression } from "./callbacks";
 
 export const defaultFunctionId = "groupBy";
 
-export const functionRouteIds = ["groupBy", "map", "filter", "reduce", "find", "sortBy", "countBy", "orderBy", "uniqBy", "sumBy", "keyBy", "flatMap", "partition", "chunk", "some", "every"];
+export const functionRouteIds = [
+  "groupBy",
+  "map",
+  "filter",
+  "reduce",
+  "find",
+  "sortBy",
+  "countBy",
+  "orderBy",
+  "uniqBy",
+  "sumBy",
+  "keyBy",
+  "flatMap",
+  "partition",
+  "chunk",
+  "some",
+  "every",
+  "maxBy",
+  "minBy",
+  "meanBy",
+  "take",
+  "drop"
+];
 
 function callbackExpression(fnId, datasetName, groupKey, callbackContext) {
   return callbackContext?.resolvedExpression ?? getDefaultCallbackExpression(fnId, datasetName, groupKey);
@@ -184,6 +206,56 @@ export function createFunctionConfigs(groupKey) {
       code: (datasetName, callbackContext) => `const result = _.every(input, ${lambda(callbackExpression("every", datasetName, groupKey, callbackContext))});`,
       run: (input, _datasetName, callbackContext) => _.every(input, (item, index, array) => Boolean(callbackContext.run(item, index, array))),
       isIncluded: (item, _datasetName, input, index, callbackContext) => Boolean(callbackContext.run(item, index, input))
+    },
+    {
+      id: "maxBy",
+      name: "_.maxBy",
+      category: "Math",
+      flow: "max",
+      signature: (datasetName, callbackContext) => `_.maxBy(${datasetName}, ${lambda(callbackExpression("maxBy", datasetName, groupKey, callbackContext))})`,
+      code: (datasetName, callbackContext) => `const result = _.maxBy(input, ${lambda(callbackExpression("maxBy", datasetName, groupKey, callbackContext))});`,
+      run: (input, _datasetName, callbackContext) => _.maxBy(input, (item, index, array) => callbackContext.run(item, index, array)),
+      isIncluded: (item, _datasetName, input, _index, callbackContext) => _.maxBy(input, (candidate, candidateIndex, array) => callbackContext.run(candidate, candidateIndex, array)) === item
+    },
+    {
+      id: "minBy",
+      name: "_.minBy",
+      category: "Math",
+      flow: "min",
+      signature: (datasetName, callbackContext) => `_.minBy(${datasetName}, ${lambda(callbackExpression("minBy", datasetName, groupKey, callbackContext))})`,
+      code: (datasetName, callbackContext) => `const result = _.minBy(input, ${lambda(callbackExpression("minBy", datasetName, groupKey, callbackContext))});`,
+      run: (input, _datasetName, callbackContext) => _.minBy(input, (item, index, array) => callbackContext.run(item, index, array)),
+      isIncluded: (item, _datasetName, input, _index, callbackContext) => _.minBy(input, (candidate, candidateIndex, array) => callbackContext.run(candidate, candidateIndex, array)) === item
+    },
+    {
+      id: "meanBy",
+      name: "_.meanBy",
+      category: "Math",
+      flow: "mean",
+      signature: (datasetName, callbackContext) => `_.meanBy(${datasetName}, ${lambda(callbackExpression("meanBy", datasetName, groupKey, callbackContext))})`,
+      code: (datasetName, callbackContext) => `const result = _.meanBy(input, ${lambda(callbackExpression("meanBy", datasetName, groupKey, callbackContext))});`,
+      run: (input, _datasetName, callbackContext) => _.meanBy(input, (item, index, array) => Number(callbackContext.run(item, index, array)) || 0),
+      isIncluded: () => true
+    },
+    {
+      id: "take",
+      name: "_.take",
+      category: "Array",
+      flow: "slice",
+      signature: (datasetName) => `_.take(${datasetName}, 3)`,
+      code: () => "const result = _.take(input, 3);",
+      run: (input) => _.take(input, 3),
+      isIncluded: (_item, _datasetName, _input, index) => index < 3
+    },
+    {
+      id: "drop",
+      name: "_.drop",
+      category: "Array",
+      flow: "slice",
+      signature: (datasetName) => `_.drop(${datasetName}, 3)`,
+      code: () => "const result = _.drop(input, 3);",
+      run: (input) => _.drop(input, 3),
+      isIncluded: (_item, _datasetName, _input, index) => index >= 3
     }
   ];
 }
