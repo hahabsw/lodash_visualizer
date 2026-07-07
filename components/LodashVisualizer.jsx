@@ -18,8 +18,11 @@ import { formatCount, getGroupKeyChoices, getItemLabel, summarizeResult } from "
 const shellClass = "app-shell grid min-h-screen grid-cols-[minmax(250px,300px)_minmax(0,1fr)] max-[1040px]:grid-cols-1";
 const sidebarClass =
   "sidebar flex flex-col gap-[22px] border-r border-[var(--line)] bg-[#f9fbfd] p-6 max-[1040px]:sticky max-[1040px]:top-0 max-[1040px]:z-[5] max-[1040px]:border-r-0 max-[1040px]:border-b max-[760px]:p-4";
+const brandHeaderClass = "flex items-start justify-between gap-3";
 const brandClass = "brand flex items-center gap-[13px]";
 const brandMarkClass = "brand-mark grid size-11 place-items-center rounded-lg bg-[var(--ink)] text-[28px] font-extrabold leading-none text-white";
+const githubLinkClass =
+  "text-button flex min-h-[34px] items-center px-3 text-[12px] no-underline";
 const functionListClass = "function-list grid gap-2 overflow-auto pr-[3px] max-[1040px]:max-h-44 max-[1040px]:grid-cols-2";
 const workbenchClass =
   "workbench grid min-w-0 grid-rows-[auto_auto_auto_auto_minmax(410px,1fr)_minmax(220px,0.48fr)] gap-[18px] p-6 max-[1040px]:grid-rows-[auto_auto_auto_auto_auto_auto] max-[760px]:p-4";
@@ -178,12 +181,17 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
   return (
     <main className={shellClass}>
       <aside className={sidebarClass} aria-label="Lodash functions">
-        <div className={brandClass}>
-          <span className={brandMarkClass}>_</span>
-          <div>
-            <h1>Lodash Visualizer</h1>
-            <p>data in motion</p>
+        <div className={brandHeaderClass}>
+          <div className={brandClass}>
+            <span className={brandMarkClass}>_</span>
+            <div>
+              <h1>Lodash Visualizer</h1>
+              <p>data in motion</p>
+            </div>
           </div>
+          <a className={githubLinkClass} href="https://github.com/hahabsw/lodash_visualizer" target="_blank" rel="noreferrer" aria-label="Open GitHub repository">
+            GitHub
+          </a>
         </div>
         <nav className={functionListClass} aria-label="Function list">
           {functions.map((fn) => (
