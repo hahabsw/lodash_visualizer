@@ -1,5 +1,6 @@
 import _ from "lodash";
 import { getDefaultCallbackExpression } from "./callbacks";
+import { applyAdvancedOperation } from "./advancedOperations";
 
 export const defaultFunctionId = "groupBy";
 
@@ -24,7 +25,21 @@ export const functionRouteIds = [
   "minBy",
   "meanBy",
   "take",
-  "drop"
+  "drop",
+  "takeWhile",
+  "dropWhile",
+  "pick",
+  "omit",
+  "get",
+  "set",
+  "merge",
+  "defaultsDeep",
+  "flattenDeep",
+  "flattenDepth",
+  "cloneDeep",
+  "isEqual",
+  "debounce",
+  "throttle"
 ];
 
 function callbackExpression(fnId, datasetName, groupKey, callbackContext) {
@@ -37,6 +52,10 @@ function lambda(expression) {
 
 function reduceLambda(expression) {
   return `(acc, item) => ${expression}`;
+}
+
+function pathArgument(operationOptions) {
+  return JSON.stringify(operationOptions?.paths || []);
 }
 
 export function createFunctionConfigs(groupKey) {
@@ -256,6 +275,110 @@ export function createFunctionConfigs(groupKey) {
       code: () => "const result = _.drop(input, 3);",
       run: (input) => _.drop(input, 3),
       isIncluded: (_item, _datasetName, _input, index) => index >= 3
+    },
+    {
+      id: "takeWhile",
+      name: "_.takeWhile",
+      category: "Array",
+      flow: "scan",
+      signature: (datasetName, callbackContext) => `_.takeWhile(${datasetName}, ${lambda(callbackExpression("takeWhile", datasetName, groupKey, callbackContext))})`,
+      code: (datasetName, callbackContext) => `const result = _.takeWhile(input, ${lambda(callbackExpression("takeWhile", datasetName, groupKey, callbackContext))});`,
+      run: (input, _datasetName, callbackContext) => _.takeWhile(input, (item, index, array) => Boolean(callbackContext.run(item, index, array))),
+      isIncluded: (_item, _datasetName, input, index, callbackContext) => {
+        const boundaryIndex = _.findIndex(input, (candidate, candidateIndex, array) => !Boolean(callbackContext.run(candidate, candidateIndex, array)));
+        return index < (boundaryIndex === -1 ? input.length : boundaryIndex);
+      }
+    },
+    {
+      id: "dropWhile",
+      name: "_.dropWhile",
+      category: "Array",
+      flow: "scan",
+      signature: (datasetName, callbackContext) => `_.dropWhile(${datasetName}, ${lambda(callbackExpression("dropWhile", datasetName, groupKey, callbackContext))})`,
+      code: (datasetName, callbackContext) => `const result = _.dropWhile(input, ${lambda(callbackExpression("dropWhile", datasetName, groupKey, callbackContext))});`,
+      run: (input, _datasetName, callbackContext) => _.dropWhile(input, (item, index, array) => Boolean(callbackContext.run(item, index, array))),
+      isIncluded: (_item, _datasetName, input, index, callbackContext) => {
+        const boundaryIndex = _.findIndex(input, (candidate, candidateIndex, array) => !Boolean(callbackContext.run(candidate, candidateIndex, array)));
+        return boundaryIndex !== -1 && index >= boundaryIndex;
+      }
+    },
+    {
+      id: "pick",
+      name: "_.pick",
+      category: "Object",
+      flow: "project",
+      signature: (datasetName, _callbackContext, operationOptions) => `_.map(${datasetName}, item => _.pick(item, ${pathArgument(operationOptions)}))`,
+      code: (_datasetName, _callbackContext, operationOptions) => `const result = _.map(input, item => _.pick(item, ${pathArgument(operationOptions)}));`,
+      run: (input, _datasetName, _callbackContext, operationOptions) => _.map(input, (item) => _.pick(item, operationOptions?.paths || [])),
+      isIncluded: () => true
+    },
+    {
+      id: "omit",
+      name: "_.omit",
+      category: "Object",
+      flow: "project",
+      signature: (datasetName, _callbackContext, operationOptions) => `_.map(${datasetName}, item => _.omit(item, ${pathArgument(operationOptions)}))`,
+      code: (_datasetName, _callbackContext, operationOptions) => `const result = _.map(input, item => _.omit(item, ${pathArgument(operationOptions)}));`,
+      run: (input, _datasetName, _callbackContext, operationOptions) => _.map(input, (item) => _.omit(item, operationOptions?.paths || [])),
+      isIncluded: () => true
+    },
+    {
+      id: "get", name: "_.get", category: "Object", flow: "path",
+      signature: (datasetName, _callback, options) => `_.map(${datasetName}, item => _.get(item, "${options.path}"))`,
+      code: (_datasetName, _callback, options) => `const result = _.map(input, item => _.get(item, "${options.path}"));`,
+      run: (input, _datasetName, _callback, options) => applyAdvancedOperation("get", input, options), isIncluded: () => true
+    },
+    {
+      id: "set", name: "_.set", category: "Object", flow: "path",
+      signature: (datasetName, _callback, options) => `_.map(${datasetName}, item => _.set(_.cloneDeep(item), "${options.path}", ${JSON.stringify(options.value)}))`,
+      code: (_datasetName, _callback, options) => `const result = _.map(input, item => _.set(_.cloneDeep(item), "${options.path}", ${JSON.stringify(options.value)}));`,
+      run: (input, _datasetName, _callback, options) => applyAdvancedOperation("set", input, options), isIncluded: () => true
+    },
+    {
+      id: "merge", name: "_.merge", category: "Object", flow: "merge",
+      signature: (datasetName, _callback, options) => `_.map(${datasetName}, item => _.merge({}, item, ${JSON.stringify(options.overlay)}))`,
+      code: (_datasetName, _callback, options) => `const result = _.map(input, item => _.merge({}, item, ${JSON.stringify(options.overlay)}));`,
+      run: (input, _datasetName, _callback, options) => applyAdvancedOperation("merge", input, options), isIncluded: () => true
+    },
+    {
+      id: "defaultsDeep", name: "_.defaultsDeep", category: "Object", flow: "merge",
+      signature: (datasetName, _callback, options) => `_.map(${datasetName}, item => _.defaultsDeep({}, item, ${JSON.stringify(options.overlay)}))`,
+      code: (_datasetName, _callback, options) => `const result = _.map(input, item => _.defaultsDeep({}, item, ${JSON.stringify(options.overlay)}));`,
+      run: (input, _datasetName, _callback, options) => applyAdvancedOperation("defaultsDeep", input, options), isIncluded: () => true
+    },
+    {
+      id: "flattenDeep", name: "_.flattenDeep", category: "Array", flow: "flatten",
+      signature: (datasetName, _callback, options) => `_.map(${datasetName}, item => _.flattenDeep(_.get(item, "${options.path}")))`,
+      code: (_datasetName, _callback, options) => `const result = _.map(input, item => _.flattenDeep(_.get(item, "${options.path}")));`,
+      run: (input, _datasetName, _callback, options) => applyAdvancedOperation("flattenDeep", input, options), isIncluded: () => true
+    },
+    {
+      id: "flattenDepth", name: "_.flattenDepth", category: "Array", flow: "flatten",
+      signature: (datasetName, _callback, options) => `_.map(${datasetName}, item => _.flattenDepth(_.get(item, "${options.path}"), ${options.depth}))`,
+      code: (_datasetName, _callback, options) => `const result = _.map(input, item => _.flattenDepth(_.get(item, "${options.path}"), ${options.depth}));`,
+      run: (input, _datasetName, _callback, options) => applyAdvancedOperation("flattenDepth", input, options), isIncluded: () => true
+    },
+    {
+      id: "cloneDeep", name: "_.cloneDeep", category: "Lang", flow: "clone",
+      signature: (datasetName) => `_.cloneDeep(${datasetName})`, code: () => "const result = _.cloneDeep(input);",
+      run: (input, _datasetName, _callback, options) => applyAdvancedOperation("cloneDeep", input, options), isIncluded: () => true
+    },
+    {
+      id: "isEqual", name: "_.isEqual", category: "Lang", flow: "compare",
+      signature: (datasetName) => `_.isEqual(${datasetName}, _.cloneDeep(${datasetName}))`, code: () => "const result = _.isEqual(input, _.cloneDeep(input));",
+      run: (input, _datasetName, _callback, options) => applyAdvancedOperation("isEqual", input, options), isIncluded: () => true
+    },
+    {
+      id: "debounce", name: "_.debounce", category: "Function", flow: "time",
+      signature: (datasetName, _callback, options) => `_.debounce(handler, ${options.wait}) // simulate ${datasetName}`,
+      code: (_datasetName, _callback, options) => `const onEvent = _.debounce(handler, ${options.wait});`,
+      run: (input, _datasetName, _callback, options) => applyAdvancedOperation("debounce", input, options), isIncluded: () => true
+    },
+    {
+      id: "throttle", name: "_.throttle", category: "Function", flow: "time",
+      signature: (datasetName, _callback, options) => `_.throttle(handler, ${options.wait}, { trailing: false }) // simulate ${datasetName}`,
+      code: (_datasetName, _callback, options) => `const onEvent = _.throttle(handler, ${options.wait}, { trailing: false });`,
+      run: (input, _datasetName, _callback, options) => applyAdvancedOperation("throttle", input, options), isIncluded: () => true
     }
   ];
 }

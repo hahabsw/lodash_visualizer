@@ -111,7 +111,8 @@ export function summarizeResult(result) {
 
 export function formatCount(list, noun) {
   const count = Array.isArray(list) ? list.length : Number(list) || 0;
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+  const plural = noun === "batch" ? "batches" : `${noun}s`;
+  return `${count} ${count === 1 ? noun : plural}`;
 }
 
 export function formatValue(value) {
