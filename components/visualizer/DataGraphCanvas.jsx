@@ -154,6 +154,7 @@ export default function DataGraphCanvas({ graph }) {
   }, [dataGraph.edges]);
 
   const currentStep = cursor === OVERVIEW ? null : steps[cursor];
+  const showInspector = Boolean(selection || currentStep);
   const showAllLabels = dataGraph.edges.length <= 6;
   const usedToneKeys = useMemo(() => [...new Set(dataGraph.edges.map((edge) => edge.tone || "tone-teal"))], [dataGraph.edges]);
 
@@ -191,7 +192,7 @@ export default function DataGraphCanvas({ graph }) {
         onSpeedChange={setSpeed}
       />
 
-      <div className="data-graph-workspace">
+      <div className={`data-graph-workspace ${showInspector ? "" : "is-inspector-hidden"}`}>
         <div className="graph-stage" aria-label="Block graph">
           <div className="graph-stage-inner" ref={contentRef} style={{ "--graph-columns": columns.length }}>
             <svg className="graph-edges" width={geometry.width} height={geometry.height} viewBox={`0 0 ${Math.max(1, geometry.width)} ${Math.max(1, geometry.height)}`} aria-hidden="true">
@@ -276,7 +277,7 @@ export default function DataGraphCanvas({ graph }) {
           </div>
         </div>
 
-        <FocusInspector selection={selection} cursor={cursor} steps={steps} graph={dataGraph} nodeById={nodeById} />
+        {showInspector ? <FocusInspector selection={selection} cursor={cursor} steps={steps} graph={dataGraph} nodeById={nodeById} /> : null}
       </div>
     </div>
   );

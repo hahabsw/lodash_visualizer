@@ -10,7 +10,8 @@ const viewerStyles = {
   container: `${darkStyles.container} json-tree-view`
 };
 
-const editorGridClass = "editor-grid grid h-[900px] min-h-0 grid-cols-[minmax(260px,1fr)_minmax(260px,1fr)] gap-3.5 overflow-hidden max-[1040px]:grid-cols-1";
+const editorGridClass =
+  "editor-grid grid h-full min-h-0 grid-cols-[minmax(260px,1fr)_minmax(260px,1fr)] gap-3.5 overflow-hidden max-[760px]:grid-cols-1 max-[760px]:grid-rows-2";
 const panelClass = "grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-lg border border-[var(--line)] bg-white/85 shadow-[var(--shadow)]";
 const panelHeadingClass = "panel-heading panel-heading-stack grid gap-2.5 border-b border-[var(--line)] px-[15px] py-3 text-xs font-extrabold uppercase text-[var(--muted)]";
 const headingRowClass = "panel-heading-row flex items-center justify-between gap-3";
