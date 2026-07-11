@@ -5,6 +5,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import _ from "lodash";
 import { DataCard, ResultView } from "./visualizer/CommonViews";
+import AdvancedOperationLab from "./visualizer/AdvancedOperationLab";
+import AdvancedOptionsPanel from "./visualizer/AdvancedOptionsPanel";
 import CallbackExpressionEditor from "./visualizer/CallbackExpressionEditor";
 import { buildCallbackContext, buildCallbackExpressionKey, getCallbackEditorMeta, getSimpleItemPropertyExpression } from "./visualizer/callbacks";
 import { datasets, defaultDatasetName, groupKeyDefaults } from "./visualizer/data";
@@ -12,7 +14,12 @@ import { createFunctionConfigs, defaultFunctionId } from "./visualizer/functionC
 import GroupByLab from "./visualizer/GroupByLab";
 import JsonWorkbench from "./visualizer/JsonWorkbench";
 import MapLab from "./visualizer/MapLab";
+import ObjectPathSelector from "./visualizer/ObjectPathSelector";
 import OperationGraphLab from "./visualizer/OperationGraphLab";
+import PickOmitLab from "./visualizer/PickOmitLab";
+import TakeDropWhileLab from "./visualizer/TakeDropWhileLab";
+import { advancedFunctionIds, advancedOptionFunctionIds, getDefaultAdvancedOptions, parseOptionValue } from "./visualizer/advancedOperations";
+import { discoverArrayPaths, discoverObjectPaths, getDefaultObjectPaths } from "./visualizer/objectPaths";
 import { capitalize, formatCount, getGroupKeyChoices, getItemLabel, summarizeResult } from "./visualizer/utils";
 
 const shellClass = "app-shell grid min-h-screen grid-cols-[minmax(250px,300px)_minmax(0,1fr)] max-[1040px]:grid-cols-1";
@@ -56,6 +63,8 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
   const [jsonStatus, setJsonStatus] = useState("valid");
   const [groupKeys, setGroupKeys] = useState(groupKeyDefaults);
   const [callbackExpressions, setCallbackExpressions] = useState({});
+  const [objectPathSelections, setObjectPathSelections] = useState({});
+  const [advancedSettings, setAdvancedSettings] = useState({});
   const [animationSeed, setAnimationSeed] = useState(0);
   const [activeVisualizationTab, setActiveVisualizationTab] = useState(normalizedVisualizationView);
   const [isDataPanelOpen, setIsDataPanelOpen] = useState(false);
@@ -64,6 +73,8 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
   const dataPanelCloseRef = useRef(null);
 
   const groupKeyChoices = useMemo(() => getGroupKeyChoices(input, datasetName), [input, datasetName]);
+  const availableObjectPaths = useMemo(() => discoverObjectPaths(input), [input]);
+  const availableArrayPaths = useMemo(() => discoverArrayPaths(input), [input]);
   const activeGroupKey = groupKeys[datasetName] || groupKeyChoices[0] || groupKeyDefaults[datasetName] || "id";
 
   useEffect(() => {
@@ -86,17 +97,46 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
 
   const functions = useMemo(() => createFunctionConfigs(activeGroupKey), [activeGroupKey]);
   const activeFn = functions.find((fn) => fn.id === activeFnId) || functions.find((fn) => fn.id === defaultFunctionId) || functions[0];
+  const isPathOperation = activeFn.id === "pick" || activeFn.id === "omit";
+  const isAdvancedOperation = advancedFunctionIds.has(activeFn.id);
+  const hasAdvancedOptions = advancedOptionFunctionIds.has(activeFn.id);
+  const selectedObjectPaths = useMemo(() => {
+    const storedPaths = objectPathSelections[datasetName];
+    if (storedPaths !== undefined) return storedPaths.filter((path) => availableObjectPaths.includes(path));
+    if (searchParams?.has("paths")) {
+      return (searchParams.get("paths") || "")
+        .split(",")
+        .filter(Boolean)
+        .filter((path) => availableObjectPaths.includes(path));
+    }
+    return getDefaultObjectPaths(datasetName, availableObjectPaths);
+  }, [availableObjectPaths, datasetName, objectPathSelections, searchParams]);
+  const advancedSettingKey = `${activeFn.id}:${datasetName}`;
+  const defaultAdvancedOptions = useMemo(
+    () => getDefaultAdvancedOptions(activeFn.id, datasetName, availableObjectPaths, availableArrayPaths),
+    [activeFn.id, availableArrayPaths, availableObjectPaths, datasetName]
+  );
+  const activeOperationOptions = useMemo(() => {
+    const settings = { ...defaultAdvancedOptions, ...(advancedSettings[advancedSettingKey] || {}) };
+    return { ...settings, paths: selectedObjectPaths, value: parseOptionValue(settings.valueText, settings.value) };
+  }, [advancedSettingKey, advancedSettings, defaultAdvancedOptions, selectedObjectPaths]);
   const activeCallbackExpressionKey = useMemo(() => buildCallbackExpressionKey(activeFn.id, datasetName), [activeFn.id, datasetName]);
   const activeCallbackContext = useMemo(
     () => buildCallbackContext({ fnId: activeFn.id, datasetName, groupKey: activeGroupKey, input, expression: callbackExpressions[activeCallbackExpressionKey] }),
     [activeCallbackExpressionKey, activeFn.id, activeGroupKey, callbackExpressions, datasetName, input]
   );
   const activeCallbackMeta = useMemo(() => getCallbackEditorMeta(activeFn.id, datasetName, activeGroupKey), [activeFn.id, activeGroupKey, datasetName]);
-  const result = useMemo(() => activeFn.run(input, datasetName, activeCallbackContext), [activeCallbackContext, activeFn, datasetName, input]);
+  const result = useMemo(
+    () => activeFn.run(input, datasetName, activeCallbackContext, activeOperationOptions),
+    [activeCallbackContext, activeFn, activeOperationOptions, datasetName, input]
+  );
   const resultText = JSON.stringify(result, null, 2);
   const datasetNames = useMemo(() => Object.keys(datasets), []);
   const showGroupByDetail = activeFn.id === "groupBy";
   const showMapDetail = activeFn.id === "map";
+  const showWhileDetail = activeFn.id === "takeWhile" || activeFn.id === "dropWhile";
+  const showPathDetail = isPathOperation;
+  const showAdvancedDetail = isAdvancedOperation;
   const showUnifiedGraph = activeVisualizationTab === "graph";
   const showInputOutput = activeVisualizationTab === "io";
   const selectedGroupKey = showGroupByDetail ? getSimpleItemPropertyExpression(activeCallbackContext?.inputExpression) : null;
@@ -105,6 +145,7 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
     const nextQuery = new URLSearchParams(searchParams?.toString() ?? "");
     nextQuery.set("dataset", nextDataset);
     nextQuery.set("view", nextView);
+    if (fnId !== "pick" && fnId !== "omit") nextQuery.delete("paths");
     return `/${fnId}?${nextQuery.toString()}`;
   }
 
@@ -124,7 +165,15 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
     setEditorContent({ json: nextInput });
     setJsonStatus("valid");
     setAnimationSeed((seed) => seed + 1);
-    updateUrl(nextDataset, activeVisualizationTab);
+    if (isPathOperation) {
+      const nextQuery = new URLSearchParams(searchParams?.toString() ?? "");
+      nextQuery.set("dataset", nextDataset);
+      nextQuery.set("view", activeVisualizationTab);
+      nextQuery.delete("paths");
+      router.replace(`/${activeFn.id}?${nextQuery.toString()}`, { scroll: false });
+    } else {
+      updateUrl(nextDataset, activeVisualizationTab);
+    }
   }
 
   function resetJson() {
@@ -188,6 +237,36 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
     });
   }
 
+  function toggleObjectPath(path) {
+    const nextPaths = selectedObjectPaths.includes(path) ? selectedObjectPaths.filter((candidate) => candidate !== path) : [...selectedObjectPaths, path];
+    setObjectPathSelections((previous) => ({ ...previous, [datasetName]: nextPaths }));
+    updateObjectPathUrl(nextPaths);
+  }
+
+  function resetObjectPaths() {
+    setObjectPathSelections((previous) => {
+      const next = { ...previous };
+      delete next[datasetName];
+      return next;
+    });
+    const nextQuery = new URLSearchParams(searchParams?.toString() ?? "");
+    nextQuery.delete("paths");
+    router.replace(`/${activeFn.id}?${nextQuery.toString()}`, { scroll: false });
+  }
+
+  function updateObjectPathUrl(paths) {
+    const nextQuery = new URLSearchParams(searchParams?.toString() ?? "");
+    nextQuery.set("paths", paths.join(","));
+    router.replace(`/${activeFn.id}?${nextQuery.toString()}`, { scroll: false });
+  }
+
+  function updateAdvancedOption(name, value) {
+    setAdvancedSettings((previous) => ({
+      ...previous,
+      [advancedSettingKey]: { ...(previous[advancedSettingKey] || {}), [name]: value }
+    }));
+  }
+
   function applyCallbackQuickKey(key) {
     updateCallbackExpression(quickExpressionForKey(activeFn.id, key));
 
@@ -248,7 +327,7 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
         <section className={summaryClass} aria-label="Current transformation">
           <div className="summary-expression">
             <span>Current transformation</span>
-            <code>{activeFn.signature(datasetName, activeCallbackContext)}</code>
+            <code>{activeFn.signature(datasetName, activeCallbackContext, activeOperationOptions)}</code>
           </div>
           <div className="summary-result" aria-live="polite">
             <span>Result</span>
@@ -329,6 +408,22 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
                   </div>
                 ) : null}
               </section>
+            ) : showPathDetail ? (
+              <ObjectPathSelector
+                fnId={activeFn.id}
+                availablePaths={availableObjectPaths}
+                selectedPaths={selectedObjectPaths}
+                onToggle={toggleObjectPath}
+                onReset={resetObjectPaths}
+              />
+            ) : hasAdvancedOptions ? (
+              <AdvancedOptionsPanel
+                fnId={activeFn.id}
+                options={activeOperationOptions}
+                availablePaths={availableObjectPaths}
+                arrayPaths={availableArrayPaths}
+                onChange={updateAdvancedOption}
+              />
             ) : (
               <div className="callback-empty">
                 <span>Callback</span>
@@ -377,7 +472,38 @@ export default function LodashVisualizer({ activeFnId = defaultFunctionId, initi
 
                 {showMapDetail ? <MapLab key={`map-lab-${animationSeed}-${datasetName}-${input.length}`} input={input} result={result} callbackContext={activeCallbackContext} /> : null}
 
-                {!showGroupByDetail && !showMapDetail ? (
+                {showWhileDetail ? (
+                  <TakeDropWhileLab
+                    key={`while-lab-${animationSeed}-${datasetName}-${activeFn.id}-${input.length}`}
+                    fnId={activeFn.id}
+                    input={input}
+                    result={result}
+                    callbackContext={activeCallbackContext}
+                  />
+                ) : null}
+
+                {showPathDetail ? (
+                  <PickOmitLab
+                    key={`path-lab-${animationSeed}-${datasetName}-${activeFn.id}-${input.length}`}
+                    fnId={activeFn.id}
+                    input={input}
+                    result={result}
+                    availablePaths={availableObjectPaths}
+                    selectedPaths={selectedObjectPaths}
+                  />
+                ) : null}
+
+                {showAdvancedDetail ? (
+                  <AdvancedOperationLab
+                    key={`advanced-lab-${animationSeed}-${datasetName}-${activeFn.id}-${input.length}`}
+                    fnId={activeFn.id}
+                    input={input}
+                    result={result}
+                    options={activeOperationOptions}
+                  />
+                ) : null}
+
+                {!showGroupByDetail && !showMapDetail && !showWhileDetail && !showPathDetail && !showAdvancedDetail ? (
                   <OperationGraphLab key={`operation-graph-${animationSeed}-${datasetName}-${activeFn.id}-${input.length}`} fnId={activeFn.id} input={input} result={result} datasetName={datasetName} callbackContext={activeCallbackContext} />
                 ) : null}
               </div>

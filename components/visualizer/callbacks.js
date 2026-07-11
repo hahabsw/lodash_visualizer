@@ -147,8 +147,24 @@ const callbackEditorConfigs = {
       if (datasetName === "events") return "item.value";
       return "item.total";
     }
+  },
+  takeWhile: {
+    label: "Boundary predicate",
+    description: "Keep the leading items while this expression stays true, then stop testing.",
+    defaultExpression: whilePredicate
+  },
+  dropWhile: {
+    label: "Boundary predicate",
+    description: "Drop the leading items while this expression stays true, then keep the rest without testing it.",
+    defaultExpression: whilePredicate
   }
 };
+
+function whilePredicate(datasetName) {
+  if (datasetName === "people") return "item.active === true";
+  if (datasetName === "events") return "item.minute < 7";
+  return "item.total >= 70";
+}
 
 export const callbackEnabledFunctionIds = new Set(Object.keys(callbackEditorConfigs));
 
